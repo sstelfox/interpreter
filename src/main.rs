@@ -6,6 +6,7 @@ use std::iter::Peekable;
 enum Token {
     Integer(char),
     Illegal,
+    Minus,
     Plus,
     EOF,
 }
@@ -24,6 +25,7 @@ impl<'a> Lexer<'a> {
 
         match self.read_char() {
             Some('+') => Token::Plus,
+            Some('-') => Token::Minus,
             Some(ref ch) => {
                 if ch.is_numeric() {
                     Token::Integer(*ch)
@@ -60,10 +62,10 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn evaluate(&mut self) -> Result<usize, &str> {
+    fn evaluate(&mut self) -> Result<i64, &str> {
         let left = match self.lexer.next_token() {
             Token::Integer(ref ch) => {
-                ch.to_string().parse::<usize>().unwrap()
+                ch.to_string().parse::<i64>().unwrap()
             },
             Token::EOF => {
                 self.eof = true;
@@ -74,8 +76,9 @@ impl<'a> Parser<'a> {
             },
         };
 
-        match self.lexer.next_token() {
-            Token::Plus => (),
+        let operation = match self.lexer.next_token() {
+            Token::Minus => Token::Minus,
+            Token::Plus => Token::Plus,
             Token::EOF => {
                 self.eof = true;
                 return Err("reached EOF");
@@ -83,11 +86,11 @@ impl<'a> Parser<'a> {
             _ => {
                 return Err("left token must be an Integer");
             },
-        }
+        };
 
         let right = match self.lexer.next_token() {
             Token::Integer(ref ch) => {
-                ch.to_string().parse::<usize>().unwrap()
+                ch.to_string().parse::<i64>().unwrap()
             },
             Token::EOF => {
                 self.eof = true;
@@ -98,7 +101,11 @@ impl<'a> Parser<'a> {
             },
         };
 
-        Ok(left + right)
+        match operation {
+            Token::Minus => Ok(left - right),
+            Token::Plus => Ok(left + right),
+            _ => Err("impossibru"),
+        }
     }
 
     fn new(lexer: Lexer<'a>) -> Self {
