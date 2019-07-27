@@ -1,6 +1,8 @@
 use std::io::{self, BufRead, Write};
 use std::str::Chars;
 use std::iter::Peekable;
+use std::fmt;
+use std::error::Error;
 
 #[derive(Debug, PartialEq)]
 enum Token {
@@ -9,6 +11,31 @@ enum Token {
     Minus,
     Plus,
     EOF,
+}
+
+#[derive(Debug, PartialEq)]
+enum ParserError {
+    SyntaxError(Token),
+}
+
+impl Error for ParserError {
+    fn description(&self) -> &str {
+        use self::ParserError::*;
+
+        match *self {
+            SyntaxError(_) => "encountered unexpected token while parsing",
+        }
+    }
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::ParserError::*;
+
+        match *self {
+            SyntaxError(ref token) => write!(f, "Encountered an unexpected token {:?}", token),
+        }
+    }
 }
 
 struct Lexer<'a> {
@@ -56,12 +83,6 @@ impl<'a> Lexer<'a> {
     }
 
     fn read_numeric(&mut self, first_ch: char) -> Result<i64, &str> {
-        // Sanity check
-        if !first_ch.is_numeric() && first_ch != '-' {
-            println!("First character was: {}", first_ch);
-            return Err("first character to read_numeric wasn't valid");
-        }
-
         let mut numeric_chars = vec![first_ch];
         loop {
             match self.peek_char() {
@@ -98,54 +119,57 @@ impl<'a> Lexer<'a> {
 
 struct Parser<'a> {
     lexer: Lexer<'a>,
-    eof: bool,
 }
 
 impl<'a> Parser<'a> {
-    fn evaluate(&mut self) -> Result<i64, &str> {
-        let left = match self.lexer.next_token() {
-            Token::Integer(num) => num,
-            Token::EOF => {
-                self.eof = true;
-                return Err("reached EOF");
-            }
-            _ => {
-                return Err("left token must be an Integer");
-            },
-        };
-
-        let operation = match self.lexer.next_token() {
-            Token::Minus => Token::Minus,
-            Token::Plus => Token::Plus,
-            Token::EOF => {
-                self.eof = true;
-                return Err("reached EOF");
-            },
-            _ => {
-                return Err("left token must be an Integer");
-            },
-        };
-
-        let right = match self.lexer.next_token() {
-            Token::Integer(num) => num,
-            Token::EOF => {
-                self.eof = true;
-                return Err("reached EOF");
-            },
-            _ => {
-                return Err("left token must be an Integer");
-            },
-        };
-
-        match operation {
-            Token::Minus => Ok(left - right),
-            Token::Plus => Ok(left + right),
-            _ => Err("impossibru"),
+    fn term(&mut self) -> Result<Token, ParserError> {
+        let current_token = self.lexer.next_token();
+        match current_token {
+            Token::Integer(_) => Ok(current_token),
+            Token::EOF => Ok(current_token),
+            _ => Err(ParserError::SyntaxError(current_token)),
         }
     }
 
+    fn expr(&mut self) -> Result<Token, ParserError> {
+        let mut left_token = self.term()?;
+        if left_token == Token::EOF {
+            return Ok(Token::EOF);
+        }
+
+        loop {
+            // Note: I will loose this token, if there are other possibilities this state need to
+            // be preserved (make current_token a persistent struct value thing?)
+            let operation = self.lexer.next_token();
+            match operation {
+                Token::Minus => {
+                    let right_token = self.term()?;
+                    left_token = match (left_token, right_token) {
+                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left - right),
+                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
+                    };
+                },
+                Token::Plus => {
+                    let right_token = self.term()?;
+                    left_token = match (left_token, right_token) {
+                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left + right),
+                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
+                    };
+                },
+                Token::EOF => {
+                    break;
+                },
+                _ => {
+                    return Err(ParserError::SyntaxError(operation));
+                },
+            }
+        }
+
+        Ok(left_token)
+    }
+
     fn new(lexer: Lexer<'a>) -> Self {
-        Parser { eof: false, lexer: lexer }
+        Parser { lexer: lexer }
     }
 }
 
@@ -162,17 +186,14 @@ fn main() {
         let lexer = Lexer::new(&mut line);
         let mut parser = Parser::new(lexer);
 
-        match parser.evaluate() {
-            Ok(result) => {
-                println!("{}", result);
+        match parser.expr() {
+            Ok(Token::EOF) => break,
+            Ok(token) => {
+                println!("{:?}", token);
             },
             Err(err) => {
                 println!("Error: {}", err);
             },
-        }
-
-        if parser.eof {
-            break;
         }
     }
 }
