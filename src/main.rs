@@ -4,7 +4,7 @@ use std::iter::Peekable;
 
 #[derive(Debug, PartialEq)]
 enum Token {
-    Integer(char),
+    Integer(i64),
     Illegal,
     Minus,
     Plus,
@@ -25,10 +25,20 @@ impl<'a> Lexer<'a> {
 
         match self.read_char() {
             Some('+') => Token::Plus,
-            Some('-') => Token::Minus,
+            Some('-') => {
+                if let Some(ch) = self.peek_char() {
+                    if ch.is_numeric() {
+                        Token::Integer(self.read_numeric('-').expect("unable to read numeric valud"))
+                    } else {
+                        Token::Minus
+                    }
+                } else {
+                    Token::Minus
+                }
+            },
             Some(ref ch) => {
                 if ch.is_numeric() {
-                    Token::Integer(*ch)
+                    Token::Integer(self.read_numeric(*ch).expect("unable to read numeric valud"))
                 } else {
                     Token::Illegal
                 }
@@ -43,6 +53,36 @@ impl<'a> Lexer<'a> {
 
     fn read_char(&mut self) -> Option<char> {
         self.input.next()
+    }
+
+    fn read_numeric(&mut self, first_ch: char) -> Result<i64, &str> {
+        // Sanity check
+        if !first_ch.is_numeric() && first_ch != '-' {
+            println!("First character was: {}", first_ch);
+            return Err("first character to read_numeric wasn't valid");
+        }
+
+        let mut numeric_chars = vec![first_ch];
+        loop {
+            match self.peek_char() {
+                Some(ch) => {
+                    if ch.is_numeric() {
+                        numeric_chars.push(self.read_char().unwrap())
+                    } else {
+                        break;
+                    }
+                },
+                None => {
+                    break;
+                },
+            }
+        }
+
+        let numeric_str: String = numeric_chars.into_iter().collect();
+        match numeric_str.parse::<i64>() {
+            Ok(num) => Ok(num),
+            Err(_) => Err("unable to parse numeric value"),
+        }
     }
 
     fn skip_whitespace(&mut self) {
@@ -64,9 +104,7 @@ struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn evaluate(&mut self) -> Result<i64, &str> {
         let left = match self.lexer.next_token() {
-            Token::Integer(ref ch) => {
-                ch.to_string().parse::<i64>().unwrap()
-            },
+            Token::Integer(num) => num,
             Token::EOF => {
                 self.eof = true;
                 return Err("reached EOF");
@@ -89,9 +127,7 @@ impl<'a> Parser<'a> {
         };
 
         let right = match self.lexer.next_token() {
-            Token::Integer(ref ch) => {
-                ch.to_string().parse::<i64>().unwrap()
-            },
+            Token::Integer(num) => num,
             Token::EOF => {
                 self.eof = true;
                 return Err("reached EOF");
