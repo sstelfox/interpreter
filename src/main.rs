@@ -136,6 +136,52 @@ impl NodeTree {
             right: None,
         }
     }
+
+    fn visit(&self) -> Result<Token, ParserError> {
+        match self.value {
+            Node::EOF => Ok(Token::EOF),
+            Node::Numeric(token) => Ok(token),
+            Node::BinaryOp(token) => {
+                match (&self.left, &self.right) {
+                    (Some(l), Some(r)) => {
+                        let l_value = l.visit()?;
+                        let r_value = r.visit()?;
+
+                        match token {
+                            Token::Division => {
+                                match (l_value, r_value) {
+                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint / rint)),
+                                    (_, _) => Err(ParserError::SyntaxError),
+                                }
+                            },
+                            Token::Minus => {
+                                match (l_value, r_value) {
+                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint - rint)),
+                                    (_, _) => Err(ParserError::SyntaxError),
+                                }
+                            },
+                            Token::Multiplication => {
+                                match (l_value, r_value) {
+                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint * rint)),
+                                    (_, _) => Err(ParserError::SyntaxError),
+                                }
+                            },
+                            Token::Plus => {
+                                match (l_value, r_value) {
+                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint + rint)),
+                                    (_, _) => Err(ParserError::SyntaxError),
+                                }
+                            },
+                            _ => Err(ParserError::SyntaxError),
+                        }
+                    },
+                    (_, _) => {
+                        Err(ParserError::SyntaxError)
+                    },
+                }
+            },
+        }
+    }
 }
 
 impl From<Token> for NodeTree {
@@ -286,6 +332,10 @@ fn main() {
         }
 
         println!("{:?}", ast);
+        match ast.visit() {
+            Ok(token) => { println!("{:?}", token) },
+            Err(err) => { println!("Interpreter error: {}", err) },
+        }
     }
 
     // Clear the prompt on exit
