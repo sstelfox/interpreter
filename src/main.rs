@@ -7,6 +7,7 @@ use std::error::Error;
 #[derive(Debug, PartialEq)]
 enum Token {
     Division,
+    Float(f64),
     Integer(i64),
     Illegal,
     Minus,
@@ -17,6 +18,7 @@ enum Token {
 
 #[derive(Debug, PartialEq)]
 enum ParserError {
+    Impossible,
     SyntaxError(Token),
 }
 
@@ -25,6 +27,7 @@ impl Error for ParserError {
         use self::ParserError::*;
 
         match *self {
+            Impossible => "encountered a parser error path that should be impossible",
             SyntaxError(_) => "encountered unexpected token while parsing",
         }
     }
@@ -36,6 +39,7 @@ impl fmt::Display for ParserError {
 
         match *self {
             SyntaxError(ref token) => write!(f, "Encountered an unexpected token {:?}", token),
+            _ => write!(f, "{}", self.description()),
         }
     }
 }
@@ -59,7 +63,7 @@ impl<'a> Lexer<'a> {
             Some('-') => Token::Minus,
             Some(ref ch) => {
                 if ch.is_numeric() {
-                    Token::Integer(self.read_numeric(*ch).expect("unable to read numeric valud"))
+                    self.read_numeric(*ch).expect("unable to read numeric valud")
                 } else {
                     Token::Illegal
                 }
@@ -76,12 +80,17 @@ impl<'a> Lexer<'a> {
         self.input.next()
     }
 
-    fn read_numeric(&mut self, first_ch: char) -> Result<i64, &str> {
+    fn read_numeric(&mut self, first_ch: char) -> Result<Token, ParserError> {
         let mut numeric_chars = vec![first_ch];
+        let mut is_float = false;
+
         loop {
             match self.peek_char() {
                 Some(ch) => {
                     if ch.is_numeric() {
+                        numeric_chars.push(self.read_char().unwrap())
+                    } else if *ch == '.' {
+                        is_float = true;
                         numeric_chars.push(self.read_char().unwrap())
                     } else {
                         break;
@@ -94,9 +103,17 @@ impl<'a> Lexer<'a> {
         }
 
         let numeric_str: String = numeric_chars.into_iter().collect();
-        match numeric_str.parse::<i64>() {
-            Ok(num) => Ok(num),
-            Err(_) => Err("unable to parse numeric value"),
+
+        if is_float {
+            match numeric_str.parse::<f64>() {
+                Ok(num) => Ok(Token::Float(num)),
+                Err(_) => Err(ParserError::Impossible),
+            }
+        } else {
+            match numeric_str.parse::<i64>() {
+                Ok(num) => Ok(Token::Integer(num)),
+                Err(_) => Err(ParserError::Impossible),
+            }
         }
     }
 
@@ -120,10 +137,12 @@ impl<'a> Parser<'a> {
         let left_token = self.lexer.next_token();
         match left_token {
             Token::Integer(_) => Ok(left_token),
+            Token::Float(_) => Ok(left_token),
             Token::Minus => {
                 let right_token = self.term()?;
                 match right_token {
                     Token::Integer(val) => Ok(Token::Integer(val * -1)),
+                    Token::Float(val) => Ok(Token::Float(val * -1.0)),
                     _ => Err(ParserError::SyntaxError(right_token)),
                 }
             },
@@ -146,6 +165,9 @@ impl<'a> Parser<'a> {
                 Token::Division => {
                     let right_token = self.term()?;
                     left_token = match (left_token, right_token) {
+                        (Token::Float(left), Token::Float(right)) => Token::Float(left / right),
+                        (Token::Float(left), Token::Integer(right)) => Token::Float(left / right as f64),
+                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 / right),
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left / right),
                         (_, right) => { return Err(ParserError::SyntaxError(right)); },
                     };
@@ -153,6 +175,9 @@ impl<'a> Parser<'a> {
                 Token::Minus => {
                     let right_token = self.term()?;
                     left_token = match (left_token, right_token) {
+                        (Token::Float(left), Token::Float(right)) => Token::Float(left - right),
+                        (Token::Float(left), Token::Integer(right)) => Token::Float(left - right as f64),
+                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 - right),
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left - right),
                         (_, right) => { return Err(ParserError::SyntaxError(right)); },
                     };
@@ -160,6 +185,9 @@ impl<'a> Parser<'a> {
                 Token::Multiplication => {
                     let right_token = self.term()?;
                     left_token = match (left_token, right_token) {
+                        (Token::Float(left), Token::Float(right)) => Token::Float(left * right),
+                        (Token::Float(left), Token::Integer(right)) => Token::Float(left * right as f64),
+                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 * right),
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left * right),
                         (_, right) => { return Err(ParserError::SyntaxError(right)); },
                     };
@@ -167,6 +195,9 @@ impl<'a> Parser<'a> {
                 Token::Plus => {
                     let right_token = self.term()?;
                     left_token = match (left_token, right_token) {
+                        (Token::Float(left), Token::Float(right)) => Token::Float(left + right),
+                        (Token::Float(left), Token::Integer(right)) => Token::Float(left + right as f64),
+                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 + right),
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left + right),
                         (_, right) => { return Err(ParserError::SyntaxError(right)); },
                     };
