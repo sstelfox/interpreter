@@ -56,17 +56,7 @@ impl<'a> Lexer<'a> {
             Some('/') => Token::Division,
             Some('*') => Token::Multiplication,
             Some('+') => Token::Plus,
-            Some('-') => {
-                if let Some(ch) = self.peek_char() {
-                    if ch.is_numeric() {
-                        Token::Integer(self.read_numeric('-').expect("unable to read numeric valud"))
-                    } else {
-                        Token::Minus
-                    }
-                } else {
-                    Token::Minus
-                }
-            },
+            Some('-') => Token::Minus,
             Some(ref ch) => {
                 if ch.is_numeric() {
                     Token::Integer(self.read_numeric(*ch).expect("unable to read numeric valud"))
@@ -127,11 +117,18 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn term(&mut self) -> Result<Token, ParserError> {
-        let current_token = self.lexer.next_token();
-        match current_token {
-            Token::Integer(_) => Ok(current_token),
-            Token::EOF => Ok(current_token),
-            _ => Err(ParserError::SyntaxError(current_token)),
+        let left_token = self.lexer.next_token();
+        match left_token {
+            Token::Integer(_) => Ok(left_token),
+            Token::Minus => {
+                let right_token = self.term()?;
+                match right_token {
+                    Token::Integer(val) => Ok(Token::Integer(val * -1)),
+                    _ => Err(ParserError::SyntaxError(right_token)),
+                }
+            },
+            Token::EOF => Ok(left_token),
+            _ => Err(ParserError::SyntaxError(left_token)),
         }
     }
 
@@ -213,8 +210,8 @@ fn main() {
                 println!("Error: {}", err);
             },
         }
-
-        // Clear the prompt on exit
-        println!("");
     }
+
+    // Clear the prompt on exit
+    println!("");
 }
