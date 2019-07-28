@@ -6,9 +6,11 @@ use std::error::Error;
 
 #[derive(Debug, PartialEq)]
 enum Token {
+    Division,
     Integer(i64),
     Illegal,
     Minus,
+    Multiplication,
     Plus,
     EOF,
 }
@@ -51,6 +53,8 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace();
 
         match self.read_char() {
+            Some('/') => Token::Division,
+            Some('*') => Token::Multiplication,
             Some('+') => Token::Plus,
             Some('-') => {
                 if let Some(ch) = self.peek_char() {
@@ -142,10 +146,24 @@ impl<'a> Parser<'a> {
             // be preserved (make current_token a persistent struct value thing?)
             let operation = self.lexer.next_token();
             match operation {
+                Token::Division => {
+                    let right_token = self.term()?;
+                    left_token = match (left_token, right_token) {
+                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left / right),
+                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
+                    };
+                },
                 Token::Minus => {
                     let right_token = self.term()?;
                     left_token = match (left_token, right_token) {
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left - right),
+                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
+                    };
+                },
+                Token::Multiplication => {
+                    let right_token = self.term()?;
+                    left_token = match (left_token, right_token) {
+                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left * right),
                         (_, right) => { return Err(ParserError::SyntaxError(right)); },
                     };
                 },
