@@ -195,5 +195,8 @@ fn main() {
                 println!("Error: {}", err);
             },
         }
+
+        // Clear the prompt on exit
+        println!("");
     }
 }
