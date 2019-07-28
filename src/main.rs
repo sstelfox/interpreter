@@ -7,7 +7,6 @@ use std::error::Error;
 #[derive(Debug, PartialEq)]
 enum Token {
     Division,
-    Float(f64),
     Integer(i64),
     Illegal,
     Minus,
@@ -19,7 +18,7 @@ enum Token {
 #[derive(Debug, PartialEq)]
 enum ParserError {
     Impossible,
-    SyntaxError(Token),
+    SyntaxError,
 }
 
 impl Error for ParserError {
@@ -28,17 +27,14 @@ impl Error for ParserError {
 
         match *self {
             Impossible => "encountered a parser error path that should be impossible",
-            SyntaxError(_) => "encountered unexpected token while parsing",
+            SyntaxError => "encountered unexpected token while parsing",
         }
     }
 }
 
 impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::ParserError::*;
-
         match *self {
-            SyntaxError(ref token) => write!(f, "Encountered an unexpected token {:?}", token),
             _ => write!(f, "{}", self.description()),
         }
     }
@@ -82,15 +78,11 @@ impl<'a> Lexer<'a> {
 
     fn read_numeric(&mut self, first_ch: char) -> Result<Token, ParserError> {
         let mut numeric_chars = vec![first_ch];
-        let mut is_float = false;
 
         loop {
             match self.peek_char() {
                 Some(ch) => {
                     if ch.is_numeric() {
-                        numeric_chars.push(self.read_char().unwrap())
-                    } else if *ch == '.' {
-                        is_float = true;
                         numeric_chars.push(self.read_char().unwrap())
                     } else {
                         break;
@@ -103,17 +95,9 @@ impl<'a> Lexer<'a> {
         }
 
         let numeric_str: String = numeric_chars.into_iter().collect();
-
-        if is_float {
-            match numeric_str.parse::<f64>() {
-                Ok(num) => Ok(Token::Float(num)),
-                Err(_) => Err(ParserError::Impossible),
-            }
-        } else {
-            match numeric_str.parse::<i64>() {
-                Ok(num) => Ok(Token::Integer(num)),
-                Err(_) => Err(ParserError::Impossible),
-            }
+        match numeric_str.parse::<i64>() {
+            Ok(num) => Ok(Token::Integer(num)),
+            Err(_) => Err(ParserError::Impossible),
         }
     }
 
@@ -129,93 +113,103 @@ impl<'a> Lexer<'a> {
 }
 
 struct Parser<'a> {
+    current_token: Token,
     lexer: Lexer<'a>,
 }
 
 impl<'a> Parser<'a> {
-    fn term(&mut self) -> Result<Token, ParserError> {
-        let left_token = self.lexer.next_token();
-        match left_token {
-            Token::Integer(_) => Ok(left_token),
-            Token::Float(_) => Ok(left_token),
+    fn advance(&mut self) {
+        //println!("Consumed: {:?}", self.current_token);
+        self.current_token = self.lexer.next_token();
+    }
+
+    fn factor(&mut self) -> Result<Token, ParserError> {
+        match self.current_token {
+            Token::EOF => Ok(Token::EOF),
+            Token::Integer(num) => {
+                self.advance();
+                Ok(Token::Integer(num))
+            },
             Token::Minus => {
-                let right_token = self.term()?;
-                match right_token {
+                self.advance();
+                let right_factor = self.factor()?;
+
+                match right_factor {
                     Token::Integer(val) => Ok(Token::Integer(val * -1)),
-                    Token::Float(val) => Ok(Token::Float(val * -1.0)),
-                    _ => Err(ParserError::SyntaxError(right_token)),
+                    _ => Err(ParserError::SyntaxError),
                 }
             },
-            Token::EOF => Ok(left_token),
-            _ => Err(ParserError::SyntaxError(left_token)),
+            _ => Err(ParserError::SyntaxError),
         }
     }
 
-    fn expr(&mut self) -> Result<Token, ParserError> {
-        let mut left_token = self.term()?;
-        if left_token == Token::EOF {
-            return Ok(Token::EOF);
-        }
+    fn term(&mut self) -> Result<Token, ParserError> {
+        let mut term_result = self.factor()?;
 
         loop {
-            // Note: I will loose this token, if there are other possibilities this state need to
-            // be preserved (make current_token a persistent struct value thing?)
-            let operation = self.lexer.next_token();
-            match operation {
+            match self.current_token {
                 Token::Division => {
-                    let right_token = self.term()?;
-                    left_token = match (left_token, right_token) {
-                        (Token::Float(left), Token::Float(right)) => Token::Float(left / right),
-                        (Token::Float(left), Token::Integer(right)) => Token::Float(left / right as f64),
-                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 / right),
+                    self.advance();
+                    let right_factor = self.factor()?;
+
+                    term_result = match (&term_result, &right_factor) {
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left / right),
-                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
-                    };
-                },
-                Token::Minus => {
-                    let right_token = self.term()?;
-                    left_token = match (left_token, right_token) {
-                        (Token::Float(left), Token::Float(right)) => Token::Float(left - right),
-                        (Token::Float(left), Token::Integer(right)) => Token::Float(left - right as f64),
-                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 - right),
-                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left - right),
-                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
+                        (_, _) => { return Err(ParserError::SyntaxError); },
                     };
                 },
                 Token::Multiplication => {
-                    let right_token = self.term()?;
-                    left_token = match (left_token, right_token) {
-                        (Token::Float(left), Token::Float(right)) => Token::Float(left * right),
-                        (Token::Float(left), Token::Integer(right)) => Token::Float(left * right as f64),
-                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 * right),
+                    self.advance();
+                    let right_factor= self.factor()?;
+
+                    term_result = match (&term_result, &right_factor) {
                         (Token::Integer(left), Token::Integer(right)) => Token::Integer(left * right),
-                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
+                        (_, _) => { return Err(ParserError::SyntaxError); },
                     };
                 },
-                Token::Plus => {
-                    let right_token = self.term()?;
-                    left_token = match (left_token, right_token) {
-                        (Token::Float(left), Token::Float(right)) => Token::Float(left + right),
-                        (Token::Float(left), Token::Integer(right)) => Token::Float(left + right as f64),
-                        (Token::Integer(left), Token::Float(right)) => Token::Float(left as f64 + right),
-                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left + right),
-                        (_, right) => { return Err(ParserError::SyntaxError(right)); },
-                    };
-                },
-                Token::EOF => {
-                    break;
-                },
-                _ => {
-                    return Err(ParserError::SyntaxError(operation));
-                },
+                _ => break,
             }
         }
 
-        Ok(left_token)
+        Ok(term_result)
     }
 
-    fn new(lexer: Lexer<'a>) -> Self {
-        Parser { lexer: lexer }
+    fn expr(&mut self) -> Result<Token, ParserError> {
+        let mut expr_result = self.term()?;
+
+        loop {
+            match self.current_token {
+                Token::Minus => {
+                    self.advance();
+                    let right_term = self.term()?;
+
+                    expr_result = match (&expr_result, &right_term) {
+                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left - right),
+                        (_, _) => { return Err(ParserError::SyntaxError); },
+                    };
+                },
+                Token::Plus => {
+                    self.advance();
+                    let right_term = self.term()?;
+
+                    expr_result = match (&expr_result, &right_term) {
+                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left + right),
+                        (_, _) => { return Err(ParserError::SyntaxError); },
+                    };
+                },
+                _ => break,
+            }
+        }
+
+        Ok(expr_result)
+    }
+
+    fn new(mut lexer: Lexer<'a>) -> Self {
+        let initial_token = lexer.next_token();
+
+        Parser {
+            current_token: initial_token,
+            lexer: lexer,
+        }
     }
 }
 
