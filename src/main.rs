@@ -147,32 +147,21 @@ impl NodeTree {
                         let l_value = l.visit()?;
                         let r_value = r.visit()?;
 
-                        match token {
-                            Token::Division => {
-                                match (l_value, r_value) {
-                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint / rint)),
-                                    (_, _) => Err(ParserError::SyntaxError),
-                                }
+                        match (l_value, r_value) {
+                            (Token::Integer(lint), Token::Integer(rint)) => {
+                                let result = match token {
+                                    Token::Division => lint / rint,
+                                    Token::Minus => lint - rint,
+                                    Token::Multiplication => lint * rint,
+                                    Token::Plus => lint + rint,
+                                    _ => {
+                                        return Err(ParserError::SyntaxError);
+                                    },
+                                };
+
+                                Ok(Token::Integer(result))
                             },
-                            Token::Minus => {
-                                match (l_value, r_value) {
-                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint - rint)),
-                                    (_, _) => Err(ParserError::SyntaxError),
-                                }
-                            },
-                            Token::Multiplication => {
-                                match (l_value, r_value) {
-                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint * rint)),
-                                    (_, _) => Err(ParserError::SyntaxError),
-                                }
-                            },
-                            Token::Plus => {
-                                match (l_value, r_value) {
-                                    (Token::Integer(lint), Token::Integer(rint)) => Ok(Token::Integer(lint + rint)),
-                                    (_, _) => Err(ParserError::SyntaxError),
-                                }
-                            },
-                            _ => Err(ParserError::SyntaxError),
+                            (_, _) => Err(ParserError::SyntaxError),
                         }
                     },
                     (_, _) => {
@@ -326,12 +315,12 @@ fn main() {
                 continue;
             },
         };
+        println!("{:?}", ast);
 
         if ast.value == Node::EOF {
             break;
         }
 
-        println!("{:?}", ast);
         match ast.visit() {
             Ok(token) => { println!("{:?}", token) },
             Err(err) => { println!("Interpreter error: {}", err) },
