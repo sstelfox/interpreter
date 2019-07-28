@@ -9,9 +9,11 @@ enum Token {
     Division,
     Integer(i64),
     Illegal,
+    Lparen,
     Minus,
     Multiplication,
     Plus,
+    Rparen,
     EOF,
 }
 
@@ -57,6 +59,8 @@ impl<'a> Lexer<'a> {
             Some('*') => Token::Multiplication,
             Some('+') => Token::Plus,
             Some('-') => Token::Minus,
+            Some('(') => Token::Lparen,
+            Some(')') => Token::Rparen,
             Some(ref ch) => {
                 if ch.is_numeric() {
                     self.read_numeric(*ch).expect("unable to read numeric valud")
@@ -137,6 +141,17 @@ impl<'a> Parser<'a> {
                 match right_factor {
                     Token::Integer(val) => Ok(Token::Integer(val * -1)),
                     _ => Err(ParserError::SyntaxError),
+                }
+            },
+            Token::Lparen => {
+                self.advance();
+                let result = self.expr()?;
+
+                if self.current_token == Token::Rparen {
+                    self.advance();
+                    Ok(result)
+                } else {
+                    Err(ParserError::SyntaxError)
                 }
             },
             _ => Err(ParserError::SyntaxError),
