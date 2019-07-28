@@ -4,17 +4,21 @@ use std::iter::Peekable;
 use std::fmt;
 use std::error::Error;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Token {
-    Division,
     Integer(i64),
-    Illegal,
-    Lparen,
+
+    LeftParen,
+    RightParen,
+
     Minus,
-    Multiplication,
     Plus,
-    Rparen,
+
+    Division,
+    Multiplication,
+
     EOF,
+    Illegal,
 }
 
 #[derive(Debug, PartialEq)]
@@ -59,8 +63,8 @@ impl<'a> Lexer<'a> {
             Some('*') => Token::Multiplication,
             Some('+') => Token::Plus,
             Some('-') => Token::Minus,
-            Some('(') => Token::Lparen,
-            Some(')') => Token::Rparen,
+            Some('(') => Token::LeftParen,
+            Some(')') => Token::RightParen,
             Some(ref ch) => {
                 if ch.is_numeric() {
                     self.read_numeric(*ch).expect("unable to read numeric valud")
@@ -116,6 +120,46 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[derive(Debug)]
+struct NodeTree {
+    value: Node,
+
+    left: Option<Box<NodeTree>>,
+    right: Option<Box<NodeTree>>,
+}
+
+impl NodeTree {
+    fn new(node: Node) -> Self {
+        NodeTree {
+            value: node,
+            left: None,
+            right: None,
+        }
+    }
+}
+
+impl From<Token> for NodeTree {
+    fn from(token: Token) -> Self {
+        match token {
+            Token::Integer(_) => NodeTree::new(Node::Numeric(token)),
+            Token::Plus | Token::Minus | Token::Multiplication | Token::Division => {
+                NodeTree::new(Node::BinaryOp(token))
+            },
+            Token::EOF => NodeTree::new(Node::EOF),
+            _ => {
+                panic!("not a valid token for a tree node: {:?}", token);
+            },
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum Node {
+    BinaryOp(Token),
+    Numeric(Token),
+    EOF,
+}
+
 struct Parser<'a> {
     current_token: Token,
     lexer: Lexer<'a>,
@@ -127,29 +171,33 @@ impl<'a> Parser<'a> {
         self.current_token = self.lexer.next_token();
     }
 
-    fn factor(&mut self) -> Result<Token, ParserError> {
+    fn factor(&mut self) -> Result<NodeTree, ParserError> {
         match self.current_token {
-            Token::EOF => Ok(Token::EOF),
+            Token::EOF => Ok(NodeTree::from(Token::EOF)),
             Token::Integer(num) => {
                 self.advance();
-                Ok(Token::Integer(num))
+                Ok(NodeTree::from(Token::Integer(num)))
             },
             Token::Minus => {
                 self.advance();
-                let right_factor = self.factor()?;
 
-                match right_factor {
-                    Token::Integer(val) => Ok(Token::Integer(val * -1)),
-                    _ => Err(ParserError::SyntaxError),
-                }
+                // Build a short new tree that negates whatever the current
+                // factor of trees is
+                let mut tree = NodeTree::from(Token::Multiplication);
+                let left = self.factor()?;
+
+                tree.left = Some(Box::new(left));
+                tree.right = Some(Box::new(NodeTree::from(Token::Integer(-1))));
+
+                Ok(tree)
             },
-            Token::Lparen => {
+            Token::LeftParen => {
                 self.advance();
-                let result = self.expr()?;
+                let tree = self.expr()?;
 
-                if self.current_token == Token::Rparen {
+                if self.current_token == Token::RightParen {
                     self.advance();
-                    Ok(result)
+                    Ok(tree)
                 } else {
                     Err(ParserError::SyntaxError)
                 }
@@ -158,64 +206,48 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn term(&mut self) -> Result<Token, ParserError> {
-        let mut term_result = self.factor()?;
+    fn term(&mut self) -> Result<NodeTree, ParserError> {
+        let mut current_tree = self.factor()?;
 
         loop {
             match self.current_token {
-                Token::Division => {
-                    self.advance();
-                    let right_factor = self.factor()?;
+                Token::Division | Token::Multiplication => {
+                    let mut new_tree = NodeTree::from(self.current_token);
 
-                    term_result = match (&term_result, &right_factor) {
-                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left / right),
-                        (_, _) => { return Err(ParserError::SyntaxError); },
-                    };
-                },
-                Token::Multiplication => {
                     self.advance();
-                    let right_factor= self.factor()?;
+                    let right = self.factor()?;
 
-                    term_result = match (&term_result, &right_factor) {
-                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left * right),
-                        (_, _) => { return Err(ParserError::SyntaxError); },
-                    };
+                    new_tree.left = Some(Box::new(current_tree));
+                    new_tree.right = Some(Box::new(right));
+                    current_tree = new_tree;
                 },
                 _ => break,
             }
         }
 
-        Ok(term_result)
+        Ok(current_tree)
     }
 
-    fn expr(&mut self) -> Result<Token, ParserError> {
-        let mut expr_result = self.term()?;
+    fn expr(&mut self) -> Result<NodeTree, ParserError> {
+        let mut current_tree = self.term()?;
 
         loop {
             match self.current_token {
-                Token::Minus => {
+                Token::Minus | Token::Plus => {
+                    let mut new_tree = NodeTree::from(self.current_token);
                     self.advance();
-                    let right_term = self.term()?;
 
-                    expr_result = match (&expr_result, &right_term) {
-                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left - right),
-                        (_, _) => { return Err(ParserError::SyntaxError); },
-                    };
-                },
-                Token::Plus => {
-                    self.advance();
-                    let right_term = self.term()?;
+                    let right = self.term()?;
 
-                    expr_result = match (&expr_result, &right_term) {
-                        (Token::Integer(left), Token::Integer(right)) => Token::Integer(left + right),
-                        (_, _) => { return Err(ParserError::SyntaxError); },
-                    };
+                    new_tree.left = Some(Box::new(current_tree));
+                    new_tree.right = Some(Box::new(right));
+                    current_tree = new_tree;
                 },
                 _ => break,
             }
         }
 
-        Ok(expr_result)
+        Ok(current_tree)
     }
 
     fn new(mut lexer: Lexer<'a>) -> Self {
@@ -241,15 +273,19 @@ fn main() {
         let lexer = Lexer::new(&mut line);
         let mut parser = Parser::new(lexer);
 
-        match parser.expr() {
-            Ok(Token::EOF) => break,
-            Ok(token) => {
-                println!("{:?}", token);
-            },
+        let ast = match parser.expr() {
+            Ok(tree) => tree,
             Err(err) => {
                 println!("Error: {}", err);
+                continue;
             },
+        };
+
+        if ast.value == Node::EOF {
+            break;
         }
+
+        println!("{:?}", ast);
     }
 
     // Clear the prompt on exit
