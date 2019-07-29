@@ -120,6 +120,13 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum Node {
+    BinaryOp(Token),
+    Numeric(Token),
+    EOF,
+}
+
 #[derive(Debug)]
 struct NodeTree {
     value: Node,
@@ -188,13 +195,6 @@ impl From<Token> for NodeTree {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum Node {
-    BinaryOp(Token),
-    Numeric(Token),
-    EOF,
-}
-
 struct Parser<'a> {
     current_token: Token,
     lexer: Lexer<'a>,
@@ -204,6 +204,28 @@ impl<'a> Parser<'a> {
     fn advance(&mut self) {
         //println!("Consumed: {:?}", self.current_token);
         self.current_token = self.lexer.next_token();
+    }
+
+    fn expr(&mut self) -> Result<NodeTree, ParserError> {
+        let mut current_tree = self.term()?;
+
+        loop {
+            match self.current_token {
+                Token::Minus | Token::Plus => {
+                    let mut new_tree = NodeTree::from(self.current_token);
+                    self.advance();
+
+                    let right = self.term()?;
+
+                    new_tree.left = Some(Box::new(current_tree));
+                    new_tree.right = Some(Box::new(right));
+                    current_tree = new_tree;
+                },
+                _ => break,
+            }
+        }
+
+        Ok(current_tree)
     }
 
     fn factor(&mut self) -> Result<NodeTree, ParserError> {
@@ -241,6 +263,15 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn new(mut lexer: Lexer<'a>) -> Self {
+        let initial_token = lexer.next_token();
+
+        Parser {
+            current_token: initial_token,
+            lexer: lexer,
+        }
+    }
+
     fn term(&mut self) -> Result<NodeTree, ParserError> {
         let mut current_tree = self.factor()?;
 
@@ -261,37 +292,6 @@ impl<'a> Parser<'a> {
         }
 
         Ok(current_tree)
-    }
-
-    fn expr(&mut self) -> Result<NodeTree, ParserError> {
-        let mut current_tree = self.term()?;
-
-        loop {
-            match self.current_token {
-                Token::Minus | Token::Plus => {
-                    let mut new_tree = NodeTree::from(self.current_token);
-                    self.advance();
-
-                    let right = self.term()?;
-
-                    new_tree.left = Some(Box::new(current_tree));
-                    new_tree.right = Some(Box::new(right));
-                    current_tree = new_tree;
-                },
-                _ => break,
-            }
-        }
-
-        Ok(current_tree)
-    }
-
-    fn new(mut lexer: Lexer<'a>) -> Self {
-        let initial_token = lexer.next_token();
-
-        Parser {
-            current_token: initial_token,
-            lexer: lexer,
-        }
     }
 }
 
