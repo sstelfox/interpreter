@@ -6,6 +6,7 @@ mod errors {
 
     #[derive(Debug, PartialEq)]
     pub enum RIError {
+        // This should be a LexicalError and I should ditch the Illegal token
         InvalidCharacter(TokenSpan),
     }
 
