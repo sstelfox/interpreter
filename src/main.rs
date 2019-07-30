@@ -15,9 +15,12 @@ mod errors {
             use self::RIError::*;
 
             match *self {
-                InvalidCharacter(tok_sp) => {
-                    write!(f, "encountered an invalid character {}: {:?}", tok_sp.location(), tok_sp.token())
-                },
+                InvalidCharacter(tok_sp) => write!(
+                    f,
+                    "encountered an invalid character {}: {:?}",
+                    tok_sp.location(),
+                    tok_sp.token()
+                ),
             }
         }
     }
@@ -27,7 +30,9 @@ mod errors {
             use self::RIError::*;
 
             match *self {
-                InvalidCharacter(_) => "encountered an invalid character while tokenizing the input",
+                InvalidCharacter(_) => {
+                    "encountered an invalid character while tokenizing the input"
+                }
             }
         }
     }
@@ -84,7 +89,10 @@ mod tokens {
             match *self {
                 CountSpan(_, tok_id) => format!("at token number {}", tok_id),
                 SimpleSpan(_, line, column) => format!("at line number {} column {}", line, column),
-                RangeSpan(_, line, s_col, e_col) => format!("at line number {} between columns {} and {}", line, s_col, e_col),
+                RangeSpan(_, line, s_col, e_col) => format!(
+                    "at line number {} between columns {} and {}",
+                    line, s_col, e_col
+                ),
             }
         }
 
@@ -117,7 +125,10 @@ mod lexer {
 
     impl TokenLexer {
         pub fn new(tokens: Vec<Token>) -> Self {
-            TokenLexer { pos: 0, token_list: tokens }
+            TokenLexer {
+                pos: 0,
+                token_list: tokens,
+            }
         }
     }
 
@@ -140,7 +151,11 @@ mod lexer {
 
     impl<'a> InputLexer<'a> {
         pub fn new(input: &'a str) -> Self {
-            InputLexer { column: 1, line: 1, input: input.chars().peekable() }
+            InputLexer {
+                column: 1,
+                line: 1,
+                input: input.chars().peekable(),
+            }
         }
 
         fn peek_char(&mut self) -> Option<&char> {
@@ -163,15 +178,21 @@ mod lexer {
             loop {
                 match self.peek_char() {
                     Some(ch) => {
-                        if !ch.is_numeric() { break; }
+                        if !ch.is_numeric() {
+                            break;
+                        }
                         numeric_chars.push(self.read_char().unwrap());
-                    },
+                    }
                     None => break,
                 }
             }
 
             let end_column = self.column - 1;
-            let num = numeric_chars.into_iter().collect::<String>().parse::<i64>().unwrap();
+            let num = numeric_chars
+                .into_iter()
+                .collect::<String>()
+                .parse::<i64>()
+                .unwrap();
 
             if start_column == end_column {
                 TokenSpan::SimpleSpan(Token::Integer(num), self.line, start_column)
@@ -182,7 +203,9 @@ mod lexer {
 
         fn skip_whitespace(&mut self) {
             while let Some(&c) = self.peek_char() {
-                if !c.is_whitespace() { break; }
+                if !c.is_whitespace() {
+                    break;
+                }
 
                 if c == '\n' {
                     self.line += 1;
@@ -214,7 +237,7 @@ mod lexer {
                     } else {
                         Token::Illegal(*ch)
                     }
-                },
+                }
                 None => Token::EOF,
             };
 
@@ -224,11 +247,12 @@ mod lexer {
 
     #[test]
     fn test_token_lexer() {
-        let mut lexer = TokenLexer::new(vec![
-            Token::Integer(45), Token::Plus
-        ]);
+        let mut lexer = TokenLexer::new(vec![Token::Integer(45), Token::Plus]);
 
-        assert_eq!(lexer.next_token(), TokenSpan::CountSpan(Token::Integer(45), 0));
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::CountSpan(Token::Integer(45), 0)
+        );
         assert_eq!(lexer.next_token(), TokenSpan::CountSpan(Token::Plus, 1));
         assert_eq!(lexer.next_token(), TokenSpan::CountSpan(Token::EOF, 2));
     }
@@ -238,20 +262,56 @@ mod lexer {
         let test_input = "   10 + (4  * 2 - 300) / 8\n3 + 8";
         let mut lexer = InputLexer::new(test_input);
 
-        assert_eq!(lexer.next_token(), TokenSpan::RangeSpan(Token::Integer(10), 1, 4, 5));
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::RangeSpan(Token::Integer(10), 1, 4, 5)
+        );
         assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Plus, 1, 7));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::LeftParen, 1, 9));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(4), 1, 10));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Multiplication, 1, 13));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(2), 1, 15));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Minus, 1, 17));
-        assert_eq!(lexer.next_token(), TokenSpan::RangeSpan(Token::Integer(300), 1, 19,21));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::RightParen, 1, 22));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Division, 1, 24));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(8), 1, 26));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(3), 2, 1));
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::LeftParen, 1, 9)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Integer(4), 1, 10)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Multiplication, 1, 13)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Integer(2), 1, 15)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Minus, 1, 17)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::RangeSpan(Token::Integer(300), 1, 19, 21)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::RightParen, 1, 22)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Division, 1, 24)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Integer(8), 1, 26)
+        );
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Integer(3), 2, 1)
+        );
         assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Plus, 2, 3));
-        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(8), 2, 5));
+        assert_eq!(
+            lexer.next_token(),
+            TokenSpan::SimpleSpan(Token::Integer(8), 2, 5)
+        );
     }
 }
 
@@ -277,7 +337,7 @@ mod parser {
                 _ => {
                     self.advance();
                     Ok(self.current_token)
-                },
+                }
             }
         }
 
@@ -305,7 +365,13 @@ mod parser {
         let lexer = super::lexer::TokenLexer::new(vec![Token::Illegal(';')]);
         let mut parser = Parser::new(Box::new(lexer));
 
-        assert_eq!(parser.construct_ast(), Err(RIError::InvalidCharacter(TokenSpan::CountSpan(Token::Illegal(';'), 0))));
+        assert_eq!(
+            parser.construct_ast(),
+            Err(RIError::InvalidCharacter(TokenSpan::CountSpan(
+                Token::Illegal(';'),
+                0
+            )))
+        );
     }
 }
 
@@ -323,7 +389,10 @@ mod repl {
             io::stdout().flush().expect("error flushing stdout");
 
             let mut line = String::new();
-            stdin.lock().read_line(&mut line).expect("unable to read from input");
+            stdin
+                .lock()
+                .read_line(&mut line)
+                .expect("unable to read from input");
             let mut lexer = InputLexer::new(&line);
 
             let mut current_token = lexer.next_token();
@@ -349,7 +418,10 @@ const VERSION: &str = "0.1.1";
 fn print_usage() {
     let prog_name = std::env::args().nth(0).unwrap();
 
-    println!("{} version {}, Copyright (C) 2019 Sam Stelfox", prog_name, VERSION);
+    println!(
+        "{} version {}, Copyright (C) 2019 Sam Stelfox",
+        prog_name, VERSION
+    );
     println!("This program is free software with ABSOLUTELY NO WARRANTY; You may");
     println!("redistribute it under the terms of the GNU Affero General Public");
     println!("License v3.0.\n");
