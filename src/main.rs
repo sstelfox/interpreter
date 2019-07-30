@@ -55,6 +55,11 @@ mod tokens {
 
     /// This data structure wraps lex'd tokens with information useful for diagnosing the source of
     /// errors in input programs.
+    ///
+    /// TODO: I should just track character offset from the beginning of the input. It's simpler to
+    /// do on the fly. If an error in the input occurs, the input can be rescanned back to we can
+    /// do the more expensive operation of find the specific line and set of characters that it
+    /// applies to. I'll still want the start and end character offsets though.
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum TokenSpan {
         /// Used by the TokenLexer for tests to indicate which of the preprocessed tokens were
