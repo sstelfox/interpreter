@@ -46,6 +46,10 @@ mod tokens {
         Plus,
 
         EOF,
+
+        // NOTE: Maybe this shouldn't be a token but instead come out of the tokenizer as an
+        // error... I could make the error message a bit cleaner and avoid a bunch of object
+        // instantiation...
         Illegal(char),
     }
 
@@ -302,6 +306,9 @@ mod parser {
 mod repl {
     use std::io::{self, BufRead, Write};
 
+    use crate::lexer::{InputLexer, Lexer};
+    use crate::tokens::Token;
+
     pub fn start_repl() {
         let stdin = io::stdin();
 
@@ -310,14 +317,23 @@ mod repl {
             io::stdout().flush().expect("error flushing stdout");
 
             let mut line = String::new();
-            let bytes = stdin.lock().read_line(&mut line).expect("unable to read from input");
+            stdin.lock().read_line(&mut line).expect("unable to read from input");
+            let mut lexer = InputLexer::new(&line);
 
-            if bytes == 0 {
+            let mut current_token = lexer.next_token();
+            if current_token.token() == Token::EOF {
                 println!("");
                 break;
             }
 
-            print!("{}", line);
+            loop {
+                println!("{:?}", current_token);
+                current_token = lexer.next_token();
+
+                if current_token.token() == Token::EOF {
+                    break;
+                }
+            }
         }
     }
 }
