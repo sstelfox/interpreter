@@ -1,332 +1,356 @@
-use std::io::{self, BufRead, Write};
-use std::str::Chars;
-use std::iter::Peekable;
-use std::fmt;
-use std::error::Error;
+mod errors {
+    use std::error::Error;
+    use std::fmt::{self, Display};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Token {
-    Integer(i64),
+    use crate::tokens::TokenSpan;
 
-    LeftParen,
-    RightParen,
+    #[derive(Debug, PartialEq)]
+    pub enum RIError {
+        InvalidCharacter(TokenSpan),
+    }
 
-    Minus,
-    Plus,
+    impl Display for RIError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            use self::RIError::*;
 
-    Division,
-    Multiplication,
+            match *self {
+                InvalidCharacter(tok_sp) => {
+                    write!(f, "encountered an invalid character {}", tok_sp.location())
+                },
+            }
+        }
+    }
 
-    EOF,
-    Illegal,
-}
+    impl Error for RIError {
+        fn description(&self) -> &str {
+            use self::RIError::*;
 
-#[derive(Debug, PartialEq)]
-enum ParserError {
-    Impossible,
-    SyntaxError,
-}
-
-impl Error for ParserError {
-    fn description(&self) -> &str {
-        use self::ParserError::*;
-
-        match *self {
-            Impossible => "encountered a parser error path that should be impossible",
-            SyntaxError => "encountered unexpected token while parsing",
+            match *self {
+                InvalidCharacter(_) => "encountered an invalid character while tokenizing the input",
+            }
         }
     }
 }
 
-impl fmt::Display for ParserError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            _ => write!(f, "{}", self.description()),
+mod tokens {
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum Token {
+        Integer(i64),
+
+        LeftParen,
+        RightParen,
+
+        Division,
+        Minus,
+        Multiplication,
+        Plus,
+
+        EOF,
+        Illegal,
+    }
+
+    /// This data structure wraps lex'd tokens with information useful for diagnosing the source of
+    /// errors in input programs.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum TokenSpan {
+        /// Used by the TokenLexer for tests to indicate which of the preprocessed tokens were
+        /// invalid. The token number is zero indexed to match its position in the input array.
+        CountSpan(Token, usize),
+
+        /// Used for single character tokens. The first numeric is the line the token was found on,
+        /// the second is the column.
+        SimpleSpan(Token, usize, usize),
+
+        /// When a token is complex enough that it spans multiple characters this span is used to
+        /// capture the full range of the input consumed. In order the numeric arguments are: line
+        /// number, column start, column end.
+        RangeSpan(Token, usize, usize, usize),
+    }
+
+    impl TokenSpan {
+        pub fn location(&self) -> String {
+            use self::TokenSpan::*;
+
+            match *self {
+                CountSpan(_, tok_id) => format!("at token number {}", tok_id),
+                SimpleSpan(_, line, column) => format!("at line number {} column {}", line, column),
+                RangeSpan(_, line, s_col, e_col) => format!("at line number {} between columns {} and {}", line, s_col, e_col),
+            }
+        }
+
+        pub fn token(&self) -> Token {
+            use self::TokenSpan::*;
+
+            match *self {
+                CountSpan(tok, _) => tok,
+                SimpleSpan(tok, _, _) => tok,
+                RangeSpan(tok, _, _, _) => tok,
+            }
         }
     }
 }
 
-struct Lexer<'a> {
-    input: Peekable<Chars<'a>>,
-}
+mod lexer {
+    use std::iter::Peekable;
+    use std::str::Chars;
 
-impl<'a> Lexer<'a> {
-    fn new(input: &'a str) -> Self {
-        Lexer { input: input.chars().peekable() }
+    use crate::tokens::{Token, TokenSpan};
+
+    pub trait Lexer {
+        fn next_token(&mut self) -> TokenSpan;
     }
 
-    fn next_token(&mut self) -> Token {
-        self.skip_whitespace();
+    pub struct TokenLexer {
+        pos: usize,
+        token_list: Vec<Token>,
+    }
 
-        match self.read_char() {
-            Some('/') => Token::Division,
-            Some('*') => Token::Multiplication,
-            Some('+') => Token::Plus,
-            Some('-') => Token::Minus,
-            Some('(') => Token::LeftParen,
-            Some(')') => Token::RightParen,
-            Some(ref ch) => {
-                if ch.is_numeric() {
-                    self.read_numeric(*ch).expect("unable to read numeric valud")
-                } else {
-                    Token::Illegal
+    impl TokenLexer {
+        pub fn new(tokens: Vec<Token>) -> Self {
+            TokenLexer { pos: 0, token_list: tokens }
+        }
+    }
+
+    impl Lexer for TokenLexer {
+        fn next_token(&mut self) -> TokenSpan {
+            if self.pos >= self.token_list.len() {
+                return TokenSpan::CountSpan(Token::EOF, self.pos);
+            }
+
+            self.pos += 1;
+            TokenSpan::CountSpan(self.token_list[self.pos - 1], self.pos - 1)
+        }
+    }
+
+    pub struct InputLexer<'a> {
+        column: usize,
+        line: usize,
+        input: Peekable<Chars<'a>>,
+    }
+
+    impl<'a> InputLexer<'a> {
+        pub fn new(input: &'a str) -> Self {
+            InputLexer { column: 1, line: 1, input: input.chars().peekable() }
+        }
+
+        fn peek_char(&mut self) -> Option<&char> {
+            self.input.peek()
+        }
+
+        fn read_char(&mut self) -> Option<char> {
+            self.column += 1;
+            self.input.next()
+        }
+
+        fn read_numeric(&mut self, first_ch: char) -> TokenSpan {
+            if !first_ch.is_numeric() {
+                // This should never happen and indicates a bug in the caller
+                panic!("a non-numeric character '{}' was provided to read_numeric (presumably at line {}, column {})", first_ch, self.line, self.column - 1);
+            }
+
+            let start_column = self.column - 1;
+            let mut numeric_chars = vec![first_ch];
+            loop {
+                match self.peek_char() {
+                    Some(ch) => {
+                        if !ch.is_numeric() { break; }
+                        numeric_chars.push(self.read_char().unwrap());
+                    },
+                    None => break,
                 }
-            },
-            None => Token::EOF,
+            }
+
+            let end_column = self.column - 1;
+            let num = numeric_chars.into_iter().collect::<String>().parse::<i64>().unwrap();
+
+            if start_column == end_column {
+                TokenSpan::SimpleSpan(Token::Integer(num), self.line, start_column)
+            } else {
+                TokenSpan::RangeSpan(Token::Integer(num), self.line, start_column, end_column)
+            }
+        }
+
+        fn skip_whitespace(&mut self) {
+            while let Some(&c) = self.peek_char() {
+                if !c.is_whitespace() { break; }
+
+                if c == '\n' {
+                    self.line += 1;
+                    self.column = 0;
+                }
+
+                self.read_char();
+            }
         }
     }
 
-    fn peek_char(&mut self) -> Option<&char> {
-        self.input.peek()
-    }
+    impl<'a> Lexer for InputLexer<'a> {
+        fn next_token(&mut self) -> TokenSpan {
+            self.skip_whitespace();
 
-    fn read_char(&mut self) -> Option<char> {
-        self.input.next()
-    }
+            let current_line = self.line;
+            let current_column = self.column;
 
-    fn read_numeric(&mut self, first_ch: char) -> Result<Token, ParserError> {
-        let mut numeric_chars = vec![first_ch];
-
-        loop {
-            match self.peek_char() {
-                Some(ch) => {
+            let token = match self.read_char() {
+                Some('-') => Token::Minus,
+                Some('+') => Token::Plus,
+                Some('/') => Token::Division,
+                Some('*') => Token::Multiplication,
+                Some('(') => Token::LeftParen,
+                Some(')') => Token::RightParen,
+                Some(ref ch) => {
                     if ch.is_numeric() {
-                        numeric_chars.push(self.read_char().unwrap())
+                        return self.read_numeric(*ch);
                     } else {
-                        break;
+                        Token::Illegal
                     }
                 },
-                None => {
-                    break;
+                None => Token::EOF,
+            };
+
+            TokenSpan::SimpleSpan(token, current_line, current_column)
+        }
+    }
+
+    #[test]
+    fn test_token_lexer() {
+        let mut lexer = TokenLexer::new(vec![
+            Token::Integer(45), Token::Plus
+        ]);
+
+        assert_eq!(lexer.next_token(), TokenSpan::CountSpan(Token::Integer(45), 0));
+        assert_eq!(lexer.next_token(), TokenSpan::CountSpan(Token::Plus, 1));
+        assert_eq!(lexer.next_token(), TokenSpan::CountSpan(Token::EOF, 2));
+    }
+
+    #[test]
+    fn test_input_lexer() {
+        let test_input = "   10 + (4  * 2 - 300) / 8\n3 + 8";
+        let mut lexer = InputLexer::new(test_input);
+
+        assert_eq!(lexer.next_token(), TokenSpan::RangeSpan(Token::Integer(10), 1, 4, 5));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Plus, 1, 7));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::LeftParen, 1, 9));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(4), 1, 10));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Multiplication, 1, 13));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(2), 1, 15));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Minus, 1, 17));
+        assert_eq!(lexer.next_token(), TokenSpan::RangeSpan(Token::Integer(300), 1, 19,21));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::RightParen, 1, 22));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Division, 1, 24));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(8), 1, 26));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(3), 2, 1));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Plus, 2, 3));
+        assert_eq!(lexer.next_token(), TokenSpan::SimpleSpan(Token::Integer(8), 2, 5));
+    }
+}
+
+mod parser {
+    use crate::errors::RIError;
+    use crate::lexer::Lexer;
+    use crate::tokens::{Token, TokenSpan};
+
+    pub struct Parser {
+        current_token: TokenSpan,
+        lexer: Box<dyn Lexer>,
+    }
+
+    impl Parser {
+        fn advance(&mut self) {
+            self.current_token = self.lexer.next_token();
+        }
+
+        pub fn construct_ast(&mut self) -> Result<TokenSpan, RIError> {
+            match self.current_token.token() {
+                Token::EOF => Ok(self.current_token),
+                Token::Illegal => Err(RIError::InvalidCharacter(self.current_token)),
+                _ => {
+                    self.advance();
+                    Ok(self.current_token)
                 },
             }
         }
 
-        let numeric_str: String = numeric_chars.into_iter().collect();
-        match numeric_str.parse::<i64>() {
-            Ok(num) => Ok(Token::Integer(num)),
-            Err(_) => Err(ParserError::Impossible),
+        pub fn new(mut lexer: Box<dyn Lexer>) -> Self {
+            let initial_token = lexer.next_token();
+
+            Parser {
+                current_token: initial_token,
+                lexer: lexer,
+            }
         }
     }
 
-    fn skip_whitespace(&mut self) {
-        while let Some(&c) = self.peek_char() {
-            if !c.is_whitespace() {
+    #[test]
+    fn test_parser_construction() {
+        let lexer = super::lexer::TokenLexer::new(vec![Token::EOF]);
+        let mut parser = Parser::new(Box::new(lexer));
+
+        assert_eq!(parser.current_token.token(), Token::EOF);
+        assert_eq!(parser.construct_ast().unwrap().token(), Token::EOF);
+    }
+
+    #[test]
+    fn test_illegal_error() {
+        let lexer = super::lexer::TokenLexer::new(vec![Token::Illegal]);
+        let mut parser = Parser::new(Box::new(lexer));
+
+        assert_eq!(parser.construct_ast(), Err(RIError::InvalidCharacter(TokenSpan::CountSpan(Token::Illegal, 0))));
+    }
+}
+
+mod repl {
+    use std::io::{self, BufRead, Write};
+
+    pub fn start_repl() {
+        let stdin = io::stdin();
+
+        loop {
+            print!(">> ");
+            io::stdout().flush().expect("error flushing stdout");
+
+            let mut line = String::new();
+            let bytes = stdin.lock().read_line(&mut line).expect("unable to read from input");
+
+            if bytes == 0 {
+                println!("");
                 break;
             }
 
-            self.read_char();
+            print!("{}", line);
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum Node {
-    BinaryOp(Token),
-    Numeric(Token),
-    EOF,
-}
+const VERSION: &str = "0.1.1";
 
-#[derive(Debug)]
-struct NodeTree {
-    value: Node,
+fn print_usage() {
+    let prog_name = std::env::args().nth(0).unwrap();
 
-    left: Option<Box<NodeTree>>,
-    right: Option<Box<NodeTree>>,
-}
-
-impl NodeTree {
-    fn new(node: Node) -> Self {
-        NodeTree {
-            value: node,
-            left: None,
-            right: None,
-        }
-    }
-
-    fn visit(&self) -> Result<Token, ParserError> {
-        match self.value {
-            Node::EOF => Ok(Token::EOF),
-            Node::Numeric(token) => Ok(token),
-            Node::BinaryOp(token) => {
-                match (&self.left, &self.right) {
-                    (Some(l), Some(r)) => {
-                        let l_value = l.visit()?;
-                        let r_value = r.visit()?;
-
-                        match (l_value, r_value) {
-                            (Token::Integer(lint), Token::Integer(rint)) => {
-                                let result = match token {
-                                    Token::Division => lint / rint,
-                                    Token::Minus => lint - rint,
-                                    Token::Multiplication => lint * rint,
-                                    Token::Plus => lint + rint,
-                                    _ => {
-                                        return Err(ParserError::SyntaxError);
-                                    },
-                                };
-
-                                Ok(Token::Integer(result))
-                            },
-                            (_, _) => Err(ParserError::SyntaxError),
-                        }
-                    },
-                    (_, _) => {
-                        Err(ParserError::SyntaxError)
-                    },
-                }
-            },
-        }
-    }
-}
-
-impl From<Token> for NodeTree {
-    fn from(token: Token) -> Self {
-        match token {
-            Token::Integer(_) => NodeTree::new(Node::Numeric(token)),
-            Token::Plus | Token::Minus | Token::Multiplication | Token::Division => {
-                NodeTree::new(Node::BinaryOp(token))
-            },
-            Token::EOF => NodeTree::new(Node::EOF),
-            _ => {
-                panic!("not a valid token for a tree node: {:?}", token);
-            },
-        }
-    }
-}
-
-struct Parser<'a> {
-    current_token: Token,
-    lexer: Lexer<'a>,
-}
-
-impl<'a> Parser<'a> {
-    fn advance(&mut self) {
-        //println!("Consumed: {:?}", self.current_token);
-        self.current_token = self.lexer.next_token();
-    }
-
-    fn expr(&mut self) -> Result<NodeTree, ParserError> {
-        let mut current_tree = self.term()?;
-
-        loop {
-            match self.current_token {
-                Token::Minus | Token::Plus => {
-                    let mut new_tree = NodeTree::from(self.current_token);
-                    self.advance();
-
-                    let right = self.term()?;
-
-                    new_tree.left = Some(Box::new(current_tree));
-                    new_tree.right = Some(Box::new(right));
-                    current_tree = new_tree;
-                },
-                _ => break,
-            }
-        }
-
-        Ok(current_tree)
-    }
-
-    fn factor(&mut self) -> Result<NodeTree, ParserError> {
-        match self.current_token {
-            Token::EOF => Ok(NodeTree::from(Token::EOF)),
-            Token::Integer(num) => {
-                self.advance();
-                Ok(NodeTree::from(Token::Integer(num)))
-            },
-            Token::Minus => {
-                self.advance();
-
-                // Build a short new tree that negates whatever the current
-                // factor of trees is
-                let mut tree = NodeTree::from(Token::Multiplication);
-                let left = self.factor()?;
-
-                tree.left = Some(Box::new(left));
-                tree.right = Some(Box::new(NodeTree::from(Token::Integer(-1))));
-
-                Ok(tree)
-            },
-            Token::LeftParen => {
-                self.advance();
-                let tree = self.expr()?;
-
-                if self.current_token == Token::RightParen {
-                    self.advance();
-                    Ok(tree)
-                } else {
-                    Err(ParserError::SyntaxError)
-                }
-            },
-            _ => Err(ParserError::SyntaxError),
-        }
-    }
-
-    fn new(mut lexer: Lexer<'a>) -> Self {
-        let initial_token = lexer.next_token();
-
-        Parser {
-            current_token: initial_token,
-            lexer: lexer,
-        }
-    }
-
-    fn term(&mut self) -> Result<NodeTree, ParserError> {
-        let mut current_tree = self.factor()?;
-
-        loop {
-            match self.current_token {
-                Token::Division | Token::Multiplication => {
-                    let mut new_tree = NodeTree::from(self.current_token);
-
-                    self.advance();
-                    let right = self.factor()?;
-
-                    new_tree.left = Some(Box::new(current_tree));
-                    new_tree.right = Some(Box::new(right));
-                    current_tree = new_tree;
-                },
-                _ => break,
-            }
-        }
-
-        Ok(current_tree)
-    }
+    println!("{} version {}, Copyright (C) 2019 Sam Stelfox", prog_name, VERSION);
+    println!("This program is free software with ABSOLUTELY NO WARRANTY; You may");
+    println!("redistribute it under the terms of the GNU Affero General Public");
+    println!("License v3.0.\n");
+    println!("Usage: {} [OPTIONS] [FILE]", prog_name);
+    println!("  -h\tPrint this help text\n");
+    println!("Run with no arguments to start a REPL or alternatively supply a");
+    println!("file to be interpreted as the first argument.\n");
+    println!("Report bugs at https://github.com/sstelfox/interpreter");
 }
 
 fn main() {
-    let stdin = io::stdin();
+    let args = std::env::args();
 
-    loop {
-        print!(">> ");
-        io::stdout().flush().expect("error flushing stdout");
-
-        let mut line = String::new();
-        stdin.lock().read_line(&mut line).expect("unable to read from stdin");
-
-        let lexer = Lexer::new(&mut line);
-        let mut parser = Parser::new(lexer);
-
-        let ast = match parser.expr() {
-            Ok(tree) => tree,
-            Err(err) => {
-                println!("Error: {}", err);
-                continue;
-            },
-        };
-        println!("{:?}", ast);
-
-        if ast.value == Node::EOF {
-            break;
+    if args.len() == 1 {
+        repl::start_repl();
+    } else if args.len() == 2 {
+        if Some("-h".to_string()) == std::env::args().nth(2) {
+            print_usage();
+        } else {
+            // TODO: read in the specified file lex / parse / interpret it
+            unimplemented!();
         }
-
-        match ast.visit() {
-            Ok(token) => { println!("{:?}", token) },
-            Err(err) => { println!("Interpreter error: {}", err) },
-        }
+    } else {
+        print_usage();
     }
-
-    // Clear the prompt on exit
-    println!("");
 }
