@@ -15,7 +15,7 @@ mod errors {
 
             match *self {
                 InvalidCharacter(tok_sp) => {
-                    write!(f, "encountered an invalid character {}", tok_sp.location())
+                    write!(f, "encountered an invalid character {}: {:?}", tok_sp.location(), tok_sp.token())
                 },
             }
         }
@@ -46,7 +46,7 @@ mod tokens {
         Plus,
 
         EOF,
-        Illegal,
+        Illegal(char),
     }
 
     /// This data structure wraps lex'd tokens with information useful for diagnosing the source of
@@ -202,7 +202,7 @@ mod lexer {
                     if ch.is_numeric() {
                         return self.read_numeric(*ch);
                     } else {
-                        Token::Illegal
+                        Token::Illegal(*ch)
                     }
                 },
                 None => Token::EOF,
@@ -263,7 +263,7 @@ mod parser {
         pub fn construct_ast(&mut self) -> Result<TokenSpan, RIError> {
             match self.current_token.token() {
                 Token::EOF => Ok(self.current_token),
-                Token::Illegal => Err(RIError::InvalidCharacter(self.current_token)),
+                Token::Illegal(_) => Err(RIError::InvalidCharacter(self.current_token)),
                 _ => {
                     self.advance();
                     Ok(self.current_token)
@@ -292,10 +292,10 @@ mod parser {
 
     #[test]
     fn test_illegal_error() {
-        let lexer = super::lexer::TokenLexer::new(vec![Token::Illegal]);
+        let lexer = super::lexer::TokenLexer::new(vec![Token::Illegal(';')]);
         let mut parser = Parser::new(Box::new(lexer));
 
-        assert_eq!(parser.construct_ast(), Err(RIError::InvalidCharacter(TokenSpan::CountSpan(Token::Illegal, 0))));
+        assert_eq!(parser.construct_ast(), Err(RIError::InvalidCharacter(TokenSpan::CountSpan(Token::Illegal(';'), 0))));
     }
 }
 
