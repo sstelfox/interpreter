@@ -143,7 +143,7 @@ mod lexer {
     use std::iter::Peekable;
     use std::str::Chars;
 
-    use crate::tokens::{SourceLocation, Token, TokenType};
+    use crate::tokens::{Literal, SourceLocation, Token, TokenType};
 
     pub trait Lexer {
         fn next_token(&mut self) -> Token;
@@ -217,7 +217,7 @@ mod lexer {
         fn next_token(&mut self) -> Token {
             self.skip_whitespace();
 
-            let source_loc = SourceLocation::new(self.offset);
+            let mut source_loc = SourceLocation::new(self.offset);
             let token_type = match self.read_char() {
                 Some(',') => TokenType::Comma,
                 Some('.') => TokenType::Dot,
@@ -231,41 +231,81 @@ mod lexer {
                 // If I add comments I'll need to extend this to peek ahead a little bit
                 Some('/') => TokenType::Slash,
                 Some('*') => TokenType::Star,
-                Some(ref ch) => {
-                    match (ch, self.peek_char()) {
-                        ('!', Some('=')) => {
-                            self.read_char();
-                            TokenType::BangEqual
-                        },
-                        ('!', _) => TokenType::Bang,
-                        ('=', Some('=')) => {
-                            self.read_char();
-                            TokenType::EqualEqual
-                        },
-                        ('=', _) => TokenType::Equal,
-                        ('>', Some('=')) => {
-                            self.read_char();
-                            TokenType::GreaterEqual
-                        },
-                        ('>', _) => TokenType::Greater,
-                        ('<', Some('=')) => {
-                            self.read_char();
-                            TokenType::LessEqual
-                        },
-                        ('<', _) => TokenType::Less,
-                        (_, _) => {
-                            // in order: check numeric, check alphanumerics (then check for idents),
-                            // fallback on.... maybe an illegal token?
-                            // NOTE: Maybe I should bring back the illegal token?
-                            TokenType::Super
-                        },
-                        _ => {
-                            // This case isn't possible, we know the first argument is Some(*)
-                            // something...
-                            panic!("impossible case reached");
-                        },
+                Some('!') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::BangEqual
+                    } else {
+                        TokenType::Bang
                     }
                 },
+                Some('=') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::EqualEqual
+                    } else {
+                        TokenType::Equal
+                    }
+                },
+                Some('>') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::GreaterEqual
+                    } else {
+                        TokenType::Greater
+                    }
+                },
+                Some('<') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::LessEqual
+                    } else {
+                        TokenType::Less
+                    }
+                },
+                Some('"') => {
+                    let mut raw_txt: Vec<char> = Vec::new();
+
+                    loop {
+                        match self.peek_char() {
+                            Some('"') => {
+                                self.read_char();
+                                break;
+                            },
+                            // Handle escaped characters
+                            Some('\\') => {
+                                self.read_char();
+
+                                // The "else" case will fall through to the next iteration of the
+                                // loop so we don't have to handle it here...
+                                if let Some(next_ch) = self.read_char() {
+                                    raw_txt.push(next_ch);
+                                };
+                            },
+                            Some(ch) => {
+                                raw_txt.push(self.read_char().unwrap());
+                            },
+                            None => {
+                                // Whelp we ran out of characters... hit an unmatched quote...
+                                println!("SCREAMING INTERNALLY");
+                                break;
+                            },
+                        }
+                    }
+
+                    let mut token = Token::new(TokenType::Text);
+                    source_loc.extend_to(self.offset - 1);
+                    token.location = Some(source_loc);
+                    token.literal = Some(Literal::Text(raw_txt.iter().collect()));
+
+                    return token;
+                },
+                Some(ref _ch) => {
+                    // in order: check numeric, check alphanumerics (then check for idents),
+                    // fallback on.... maybe an illegal token?
+                    // NOTE: Maybe I should bring back the illegal token?
+                    TokenType::Super
+                }
                 None => TokenType::EOF,
             };
 
