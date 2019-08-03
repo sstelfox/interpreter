@@ -219,16 +219,53 @@ mod lexer {
 
             let source_loc = SourceLocation::new(self.offset);
             let token_type = match self.read_char() {
+                Some(',') => TokenType::Comma,
+                Some('.') => TokenType::Dot,
+                Some('[') => TokenType::LeftBrace,
+                Some('(') => TokenType::LeftParen,
                 Some('-') => TokenType::Minus,
                 Some('+') => TokenType::Plus,
+                Some(']') => TokenType::RightBrace,
+                Some(')') => TokenType::RightParen,
+                Some(';') => TokenType::SemiColon,
+                // If I add comments I'll need to extend this to peek ahead a little bit
                 Some('/') => TokenType::Slash,
                 Some('*') => TokenType::Star,
-                Some('(') => TokenType::LeftParen,
-                Some(')') => TokenType::RightParen,
-                Some(_) => {
-                    // NOTE: Maybe I should bring back the illegal token?
-                    TokenType::Super
-                }
+                Some(ref ch) => {
+                    match (ch, self.peek_char()) {
+                        ('!', Some('=')) => {
+                            self.read_char();
+                            TokenType::BangEqual
+                        },
+                        ('!', _) => TokenType::Bang,
+                        ('=', Some('=')) => {
+                            self.read_char();
+                            TokenType::EqualEqual
+                        },
+                        ('=', _) => TokenType::Equal,
+                        ('>', Some('=')) => {
+                            self.read_char();
+                            TokenType::GreaterEqual
+                        },
+                        ('>', _) => TokenType::Greater,
+                        ('<', Some('=')) => {
+                            self.read_char();
+                            TokenType::LessEqual
+                        },
+                        ('<', _) => TokenType::Less,
+                        (_, _) => {
+                            // in order: check numeric, check alphanumerics (then check for idents),
+                            // fallback on.... maybe an illegal token?
+                            // NOTE: Maybe I should bring back the illegal token?
+                            TokenType::Super
+                        },
+                        _ => {
+                            // This case isn't possible, we know the first argument is Some(*)
+                            // something...
+                            panic!("impossible case reached");
+                        },
+                    }
+                },
                 None => TokenType::EOF,
             };
 
