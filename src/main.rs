@@ -37,6 +37,7 @@ mod tokens {
     #[derive(Debug, PartialEq)]
     pub enum Literal {
         Identifier(String),
+        Invalid(char),
         Number(f64),
         Text(String),
     }
@@ -107,6 +108,7 @@ mod tokens {
         While,
 
         EOF,
+        Invalid,
     }
 
     /// This data structure wraps lex'd tokens with information useful for diagnosing the source of
@@ -133,7 +135,11 @@ mod tokens {
             };
 
             // Should I do some kind of validation here? Check that end > start? Nah not for now...
-            *self = Range(start_pos, end_pos);
+            if (start_pos == end_pos) {
+                *self = Point(start_pos);
+            } else {
+                *self = Range(start_pos, end_pos);
+            }
         }
     }
 }
@@ -300,11 +306,22 @@ mod lexer {
 
                     return token;
                 },
-                Some(ref _ch) => {
-                    // in order: check numeric, check alphanumerics (then check for idents),
-                    // fallback on.... maybe an illegal token?
-                    // NOTE: Maybe I should bring back the illegal token?
-                    TokenType::Super
+                Some(ch) => {
+                    if ch.is_alphabetic() {
+                        // Need to parse out an identifier
+                        TokenType::Text
+                    } else if ch.is_numeric() {
+                        // Need to parse out a number
+                        TokenType::Number
+                    } else {
+                        // in order: check numeric, check alphanumerics (then check for idents),
+                        // fallback on an illegal token?
+                        let mut inv_token = Token::new(TokenType::Invalid);
+                        inv_token.location = Some(source_loc);
+                        inv_token.literal = Some(Literal::Invalid(ch));
+
+                        return inv_token;
+                    }
                 }
                 None => TokenType::EOF,
             };
