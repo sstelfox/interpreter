@@ -134,10 +134,8 @@ mod tokens {
                 Range(start, _) => start,
             };
 
-            // Should I do some kind of validation here? Check that end > start? Nah not for now...
-            if (start_pos == end_pos) {
-                *self = Point(start_pos);
-            } else {
+            if start_pos != end_pos {
+                // Should I do some kind of validation here? Check that end > start? Nah not for now...
                 *self = Range(start_pos, end_pos);
             }
         }
@@ -208,6 +206,53 @@ mod lexer {
             self.input.next()
         }
 
+        fn read_numeric(&mut self, first_ch: char) -> f64 {
+            let mut raw_txt: Vec<char> = vec![first_ch];
+            let mut found_dot = false;
+
+            loop {
+                match self.peek_char() {
+                    Some(next_ch) => {
+                        if next_ch.is_numeric() {
+                            raw_txt.push(self.read_char().unwrap());
+                        } else if next_ch == &'.' {
+                            if found_dot {
+                                break;
+                            }
+
+                            found_dot = true;
+                            raw_txt.push(self.read_char().unwrap());
+                        } else {
+                            break;
+                        }
+                    },
+                    None => break,
+                }
+            }
+
+            let numeric_str: String = raw_txt.iter().collect();
+            numeric_str.parse::<f64>().unwrap()
+        }
+
+        fn read_text(&mut self, first_ch: char) -> String {
+            let mut raw_txt: Vec<char> = vec![first_ch];
+
+            loop {
+                match self.peek_char() {
+                    Some(next_ch) => {
+                        if next_ch.is_alphanumeric() {
+                            raw_txt.push(self.read_char().unwrap());
+                        } else {
+                            break;
+                        }
+                    },
+                    None => break,
+                }
+            }
+
+            raw_txt.iter().collect()
+        }
+
         fn skip_whitespace(&mut self) {
             while let Some(&c) = self.peek_char() {
                 if !c.is_whitespace() {
@@ -223,7 +268,9 @@ mod lexer {
         fn next_token(&mut self) -> Token {
             self.skip_whitespace();
 
+            let mut literal: Option<Literal> = None;
             let mut source_loc = SourceLocation::new(self.offset);
+
             let token_type = match self.read_char() {
                 Some(',') => TokenType::Comma,
                 Some('.') => TokenType::Dot,
@@ -288,7 +335,7 @@ mod lexer {
                                     raw_txt.push(next_ch);
                                 };
                             },
-                            Some(ch) => {
+                            Some(_) => {
                                 raw_txt.push(self.read_char().unwrap());
                             },
                             None => {
@@ -299,34 +346,55 @@ mod lexer {
                         }
                     }
 
-                    let mut token = Token::new(TokenType::Text);
-                    source_loc.extend_to(self.offset - 1);
-                    token.location = Some(source_loc);
-                    token.literal = Some(Literal::Text(raw_txt.iter().collect()));
+                    literal = Some(Literal::Text(raw_txt.iter().collect()));
 
-                    return token;
+                    TokenType::Text
                 },
                 Some(ch) => {
                     if ch.is_alphabetic() {
-                        // Need to parse out an identifier
-                        TokenType::Text
+                        let ident = self.read_text(ch);
+
+                        match ident.as_ref() {
+                            "and" => TokenType::And,
+                            "class" => TokenType::Class,
+                            "else" => TokenType::Else,
+                            "false" => TokenType::False,
+                            "for" => TokenType::For,
+                            "fun" => TokenType::Fun,
+                            "if" => TokenType::If,
+                            "nil" => TokenType::Nil,
+                            "or" => TokenType::Or,
+                            "print" => TokenType::Print,
+                            "return" => TokenType::Return,
+                            "super" => TokenType::Super,
+                            "this" => TokenType::This,
+                            "true" => TokenType::True,
+                            "var" => TokenType::Var,
+                            "while" => TokenType::While,
+                            _ => {
+                                literal = Some(Literal::Identifier(ident));
+                                TokenType::Identifier
+                            }
+                        }
                     } else if ch.is_numeric() {
-                        // Need to parse out a number
+                        literal = Some(Literal::Number(self.read_numeric(ch)));
                         TokenType::Number
                     } else {
                         // in order: check numeric, check alphanumerics (then check for idents),
                         // fallback on an illegal token?
-                        let mut inv_token = Token::new(TokenType::Invalid);
-                        inv_token.location = Some(source_loc);
-                        inv_token.literal = Some(Literal::Invalid(ch));
-
-                        return inv_token;
+                        literal = Some(Literal::Invalid(ch));
+                        TokenType::Invalid
                     }
                 }
                 None => TokenType::EOF,
             };
 
+            // This won't do anything unless we've extended beyond our starting
+            // position
+            source_loc.extend_to(self.offset - 1);
+
             let mut token = Token::new(token_type);
+            token.literal = literal;
             token.location = Some(source_loc);
             return token;
         }
