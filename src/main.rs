@@ -225,7 +225,7 @@ mod lexer {
                         } else {
                             break;
                         }
-                    },
+                    }
                     None => break,
                 }
             }
@@ -245,7 +245,7 @@ mod lexer {
                         } else {
                             break;
                         }
-                    },
+                    }
                     None => break,
                 }
             }
@@ -291,7 +291,7 @@ mod lexer {
                     } else {
                         TokenType::Bang
                     }
-                },
+                }
                 Some('=') => {
                     if self.peek_char() == Some(&'=') {
                         self.read_char();
@@ -299,7 +299,7 @@ mod lexer {
                     } else {
                         TokenType::Equal
                     }
-                },
+                }
                 Some('>') => {
                     if self.peek_char() == Some(&'=') {
                         self.read_char();
@@ -307,7 +307,7 @@ mod lexer {
                     } else {
                         TokenType::Greater
                     }
-                },
+                }
                 Some('<') => {
                     if self.peek_char() == Some(&'=') {
                         self.read_char();
@@ -315,7 +315,7 @@ mod lexer {
                     } else {
                         TokenType::Less
                     }
-                },
+                }
                 Some('"') => {
                     let mut raw_txt: Vec<char> = Vec::new();
 
@@ -324,7 +324,7 @@ mod lexer {
                             Some('"') => {
                                 self.read_char();
                                 break;
-                            },
+                            }
                             // Handle escaped characters
                             Some('\\') => {
                                 self.read_char();
@@ -334,22 +334,22 @@ mod lexer {
                                 if let Some(next_ch) = self.read_char() {
                                     raw_txt.push(next_ch);
                                 };
-                            },
+                            }
                             Some(_) => {
                                 raw_txt.push(self.read_char().unwrap());
-                            },
+                            }
                             None => {
                                 // Whelp we ran out of characters... hit an unmatched quote...
                                 println!("SCREAMING INTERNALLY");
                                 break;
-                            },
+                            }
                         }
                     }
 
                     literal = Some(Literal::Text(raw_txt.iter().collect()));
 
                     TokenType::Text
-                },
+                }
                 Some(ch) => {
                     if ch.is_alphabetic() {
                         let ident = self.read_text(ch);
@@ -401,8 +401,7 @@ mod lexer {
     }
 }
 
-mod parser {
-}
+mod parser {}
 
 mod interpreter {
     use std::fs::File;
