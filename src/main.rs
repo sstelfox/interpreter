@@ -38,6 +38,7 @@ mod tokens {
     pub enum Literal {
         Identifier(String),
         Invalid(char),
+        // Note: All numbers in this language are handled as floats
         Number(f64),
         Text(String),
     }
@@ -376,7 +377,11 @@ mod lexer {
                                 // The "else" case will fall through to the next iteration of the
                                 // loop so we don't have to handle it here...
                                 if let Some(next_ch) = self.read_char() {
-                                    raw_txt.push(next_ch);
+                                    match next_ch {
+                                        'n' => raw_txt.push('\n'),
+                                        't' => raw_txt.push('\t'),
+                                        _ => raw_txt.push(next_ch),
+                                    }
                                 };
                             }
                             Some(_) => {
@@ -391,7 +396,6 @@ mod lexer {
                     }
 
                     literal = Some(Literal::Text(raw_txt.iter().collect()));
-
                     TokenType::Text
                 }
                 Some(ch) => {
