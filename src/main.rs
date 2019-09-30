@@ -294,8 +294,8 @@ mod lexer {
             let token_type = match self.read_char() {
                 Some('(') => TokenType::LeftParen,
                 Some(')') => TokenType::RightParen,
-                Some('[') => TokenType::LeftBrace,
-                Some(']') => TokenType::RightBrace,
+                Some('{') => TokenType::LeftBrace,
+                Some('}') => TokenType::RightBrace,
                 Some(',') => TokenType::Comma,
                 Some('.') => TokenType::Dot,
                 Some('-') => TokenType::Minus,
