@@ -302,8 +302,38 @@ mod lexer {
                 Some('+') => TokenType::Plus,
                 Some(';') => TokenType::SemiColon,
                 Some('*') => TokenType::Star,
-
-                // If I add comments I'll need to extend this to peek ahead a little bit
+                Some('!') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::BangEqual
+                    } else {
+                        TokenType::Bang
+                    }
+                }
+                Some('=') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::EqualEqual
+                    } else {
+                        TokenType::Equal
+                    }
+                }
+                Some('<') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::LessEqual
+                    } else {
+                        TokenType::Less
+                    }
+                }
+                Some('>') => {
+                    if self.peek_char() == Some(&'=') {
+                        self.read_char();
+                        TokenType::GreaterEqual
+                    } else {
+                        TokenType::Greater
+                    }
+                }
                 Some('/') => {
                     if self.peek_char() == Some(&'/') {
                         // Handle comments
@@ -328,39 +358,6 @@ mod lexer {
                         TokenType::Comment
                     } else {
                         TokenType::Slash
-                    }
-                }
-
-                Some('!') => {
-                    if self.peek_char() == Some(&'=') {
-                        self.read_char();
-                        TokenType::BangEqual
-                    } else {
-                        TokenType::Bang
-                    }
-                }
-                Some('=') => {
-                    if self.peek_char() == Some(&'=') {
-                        self.read_char();
-                        TokenType::EqualEqual
-                    } else {
-                        TokenType::Equal
-                    }
-                }
-                Some('>') => {
-                    if self.peek_char() == Some(&'=') {
-                        self.read_char();
-                        TokenType::GreaterEqual
-                    } else {
-                        TokenType::Greater
-                    }
-                }
-                Some('<') => {
-                    if self.peek_char() == Some(&'=') {
-                        self.read_char();
-                        TokenType::LessEqual
-                    } else {
-                        TokenType::Less
                     }
                 }
                 Some('"') => {
