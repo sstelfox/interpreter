@@ -363,6 +363,7 @@ mod lexer {
                 }
                 Some('"') => {
                     let mut raw_txt: Vec<char> = Vec::new();
+                    let mut token_type = TokenType::Text;
 
                     loop {
                         match self.peek_char() {
@@ -380,7 +381,25 @@ mod lexer {
                                     match next_ch {
                                         'n' => raw_txt.push('\n'),
                                         't' => raw_txt.push('\t'),
-                                        _ => raw_txt.push(next_ch),
+                                        '"' => raw_txt.push('"'),
+                                        _ => {
+                                            self.had_error = true;
+
+                                            // TODO: I need to embed a more appropriate error here
+                                            // when there is an invalid escaped character instead
+                                            // of just printing it out
+                                            println!("Invalid escape sequence found: \\{}", next_ch);
+
+                                            token_type = TokenType::Invalid;
+                                            literal = Some(Literal::Invalid(next_ch));
+
+                                            // Note: intentionally dropping out of the loop so we
+                                            // can try and consume the remainder of the string...
+                                            // This does have the downside that if there is an
+                                            // unmatched quote error as well, we can only return
+                                            // one error... I'm leaning towards reporting the
+                                            // unmatched quote one as it's more serious
+                                        },
                                     }
                                 };
                             }
@@ -389,14 +408,23 @@ mod lexer {
                             }
                             None => {
                                 // Whelp we ran out of characters... hit an unmatched quote...
-                                println!("SCREAMING INTERNALLY");
+                                self.had_error = true;
+                                token_type = TokenType::Invalid;
+
+                                // TODO: I need to embed a more appropriate error here when there
+                                // is an unmatched quote instead of just printing it out
+                                println!("Quoted string is missing an ending quote");
+
                                 break;
                             }
                         }
                     }
 
-                    literal = Some(Literal::Text(raw_txt.iter().collect()));
-                    TokenType::Text
+                    if literal.is_none() {
+                        literal = Some(Literal::Text(raw_txt.iter().collect()));
+                    }
+
+                    token_type
                 }
                 Some(ch) => {
                     if ch.is_alphabetic() {
