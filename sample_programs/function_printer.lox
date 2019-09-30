@@ -1,0 +1,7 @@
+fun testing(argument) {
+  // With a comment that isn't really doing anything
+  print("This is your life building an interpreter...");
+  print(argument);
+}
+
+testing("... what have you done?");
