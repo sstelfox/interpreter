@@ -120,12 +120,6 @@ mod tokens {
     }
 
     impl SourceLocation {
-        // SourceLocation's always start as a single character location, but can be extended to
-        // cover a range.
-        pub fn new(loc: usize) -> Self {
-            SourceLocation::Point(loc)
-        }
-
         pub fn extend_to(&mut self, end_pos: usize) {
             use self::SourceLocation::*;
 
@@ -139,6 +133,12 @@ mod tokens {
                 *self = Range(start_pos, end_pos);
             }
         }
+
+        // SourceLocation's always start as a single character location, but can be extended to
+        // cover a range.
+        pub fn new(loc: usize) -> Self {
+            SourceLocation::Point(loc)
+        }
     }
 }
 
@@ -150,10 +150,12 @@ mod lexer {
     use crate::tokens::{Literal, SourceLocation, Token, TokenType};
 
     pub trait Lexer {
+        fn had_error(&self) -> bool;
         fn next_token(&mut self) -> Token;
     }
 
     pub struct TokenLexer {
+        had_error: bool,
         pos: usize,
         token_list: VecDeque<Token>,
     }
@@ -161,6 +163,7 @@ mod lexer {
     impl TokenLexer {
         pub fn new(tokens: Vec<Token>) -> Self {
             TokenLexer {
+                had_error: false,
                 pos: 0,
                 token_list: VecDeque::from(tokens),
             }
@@ -168,6 +171,10 @@ mod lexer {
     }
 
     impl Lexer for TokenLexer {
+        fn had_error(&self) -> bool {
+            self.had_error
+        }
+
         fn next_token(&mut self) -> Token {
             if self.token_list.is_empty() {
                 return Token::new(TokenType::EOF);
@@ -180,6 +187,10 @@ mod lexer {
             let mut token = self.token_list.pop_front().unwrap();
             token.location = Some(source_loc);
 
+            if token.token_type == TokenType::Invalid {
+                self.had_error = true;
+            }
+
             token
         }
     }
@@ -187,6 +198,7 @@ mod lexer {
     pub struct InputLexer<'a> {
         input: Peekable<Chars<'a>>,
         offset: usize,
+        had_error: bool,
     }
 
     impl<'a> InputLexer<'a> {
@@ -194,6 +206,7 @@ mod lexer {
             InputLexer {
                 input: input.chars().peekable(),
                 offset: 0,
+                had_error: false,
             }
         }
 
@@ -265,6 +278,10 @@ mod lexer {
     }
 
     impl<'a> Lexer for InputLexer<'a> {
+        fn had_error(&self) -> bool {
+            self.had_error
+        }
+
         fn next_token(&mut self) -> Token {
             self.skip_whitespace();
 
@@ -380,6 +397,8 @@ mod lexer {
                         literal = Some(Literal::Number(self.read_numeric(ch)));
                         TokenType::Number
                     } else {
+                        self.had_error = true;
+
                         // in order: check numeric, check alphanumerics (then check for idents),
                         // fallback on an illegal token?
                         literal = Some(Literal::Invalid(ch));
@@ -427,6 +446,11 @@ mod interpreter {
                 break;
             }
         }
+
+        if lexer.had_error() {
+            println!("Error: Encountered invalid tokens during lexing");
+            std::process::exit(65);
+        }
     }
 
     pub fn start_repl() {
@@ -457,6 +481,10 @@ mod interpreter {
                 if current_token.token_type == TokenType::EOF {
                     break;
                 }
+            }
+
+            if lexer.had_error() {
+                println!("Error: Encountered invalid tokens during lexing");
             }
         }
     }
@@ -496,7 +524,8 @@ fn main() {
             interpreter::run_file(arg);
         }
     } else {
+        // Command line usage error (/usr/include/sysexits.h)
         print_usage();
-        std::process::exit(22);
+        std::process::exit(64);
     }
 }
