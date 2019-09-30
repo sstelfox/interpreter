@@ -385,6 +385,11 @@ mod lexer {
                                         _ => {
                                             self.had_error = true;
 
+                                            // We want the reported bad escape sequence to be
+                                            // present if there is an unterminated string error
+                                            raw_txt.push('\\');
+                                            raw_txt.push(next_ch);
+
                                             // TODO: I need to embed a more appropriate error here
                                             // when there is an invalid escaped character instead
                                             // of just printing it out
@@ -411,9 +416,13 @@ mod lexer {
                                 self.had_error = true;
                                 token_type = TokenType::Invalid;
 
+                                // Clear this in case there has been an invalid escape sequence,
+                                // this one takes priority and I want the full unquoted string
+                                literal = None;
+
                                 // TODO: I need to embed a more appropriate error here when there
                                 // is an unmatched quote instead of just printing it out
-                                println!("Quoted string is missing an ending quote");
+                                println!("Encountered unterminated string");
 
                                 break;
                             }
