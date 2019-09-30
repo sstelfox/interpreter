@@ -108,6 +108,9 @@ mod tokens {
         While,
 
         EOF,
+
+        // These aren't present in the reference language as tokens
+        Comment,
         Invalid,
     }
 
@@ -289,18 +292,45 @@ mod lexer {
             let mut source_loc = SourceLocation::new(self.offset);
 
             let token_type = match self.read_char() {
+                Some('(') => TokenType::LeftParen,
+                Some(')') => TokenType::RightParen,
+                Some('[') => TokenType::LeftBrace,
+                Some(']') => TokenType::RightBrace,
                 Some(',') => TokenType::Comma,
                 Some('.') => TokenType::Dot,
-                Some('[') => TokenType::LeftBrace,
-                Some('(') => TokenType::LeftParen,
                 Some('-') => TokenType::Minus,
                 Some('+') => TokenType::Plus,
-                Some(']') => TokenType::RightBrace,
-                Some(')') => TokenType::RightParen,
                 Some(';') => TokenType::SemiColon,
-                // If I add comments I'll need to extend this to peek ahead a little bit
-                Some('/') => TokenType::Slash,
                 Some('*') => TokenType::Star,
+
+                // If I add comments I'll need to extend this to peek ahead a little bit
+                Some('/') => {
+                    if self.peek_char() == Some(&'/') {
+                        // Handle comments
+                        self.read_char();
+                        self.skip_whitespace();
+
+                        let mut raw_txt: Vec<char> = Vec::new();
+
+                        loop {
+                            match self.peek_char() {
+                                Some(ch) => {
+                                    if ch == &'\n' {
+                                        break;
+                                    }
+                                    raw_txt.push(self.read_char().unwrap());
+                                }
+                                None => break,
+                            }
+                        }
+
+                        literal = Some(Literal::Text(raw_txt.iter().collect()));
+                        TokenType::Comment
+                    } else {
+                        TokenType::Slash
+                    }
+                }
+
                 Some('!') => {
                     if self.peek_char() == Some(&'=') {
                         self.read_char();
