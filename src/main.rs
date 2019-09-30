@@ -487,6 +487,7 @@ mod interpreter {
         let stdin = io::stdin();
 
         loop {
+            // TODO: Don't print this or flush if we're piping from STDIN
             print!(">> ");
             io::stdout().flush().expect("error flushing stdout");
 
