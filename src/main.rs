@@ -238,11 +238,6 @@ mod lexer {
             let mut raw_txt: Vec<char> = vec![first_ch];
             let mut found_dot = false;
 
-            // NOTE: This has an error, currently it will consume '11231.' as '11231.0' when the
-            // period should be left as a separate token. Without being able to lookahead one extra
-            // space, I can't *NOT* consume the period to check whether the following digit is
-            // numeric or not...
-
             loop {
                 match self.peek_char() {
                     Some(next_ch) => {
@@ -253,8 +248,15 @@ mod lexer {
                                 break;
                             }
 
-                            found_dot = true;
-                            raw_txt.push(self.read_char().unwrap());
+                            if let Some(next_ch2) = self.peek_char2() {
+                                if next_ch2.is_numeric() {
+                                    found_dot = true;
+                                    raw_txt.push(self.read_char().unwrap());
+                                    continue;
+                                }
+                            }
+
+                            break;
                         } else {
                             break;
                         }
