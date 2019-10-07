@@ -43,11 +43,18 @@ mod tokens {
         Text(String),
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug)]
     pub struct Token {
         pub token_type: TokenType,
         pub literal: Option<Literal>,
         pub location: Option<SourceLocation>,
+    }
+
+    impl PartialEq for Token {
+        // For the sake of equality the source location doesn't matter
+        fn eq(&self, other: &Self) -> bool {
+            self.token_type == other.token_type && self.literal == other.literal
+        }
     }
 
     impl Token {
@@ -57,6 +64,16 @@ mod tokens {
                 literal: None,
                 location: None,
             }
+        }
+
+        pub fn set_literal(mut self, new_literal: Option<Literal>) -> Self {
+            self.literal = new_literal;
+            self
+        }
+
+        pub fn set_location(mut self, new_loc: Option<SourceLocation>) -> Self {
+            self.location = new_loc;
+            self
         }
     }
 
@@ -497,10 +514,51 @@ mod lexer {
             // position
             source_loc.extend_to(self.offset - 1);
 
-            let mut token = Token::new(token_type);
-            token.literal = literal;
-            token.location = Some(source_loc);
-            return token;
+            return Token::new(token_type)
+                    .set_literal(literal)
+                    .set_location(Some(source_loc));
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn collect_all_tokens(mut lexer: Box<dyn Lexer>) -> Vec<Token> {
+            let mut tok_list = Vec::new();
+
+            loop {
+                let cur_tok = lexer.next_token();
+
+                if cur_tok.token_type == TokenType::EOF {
+                    tok_list.push(cur_tok);
+                    break;
+                } else {
+                    tok_list.push(cur_tok);
+                }
+            }
+
+            tok_list
+        }
+
+        #[test]
+        fn test_lexing_numerics() {
+            let input_str = "1 23.8 890.111.floor()";
+            let lexer = InputLexer::new(&input_str);
+            let token_list = collect_all_tokens(Box::new(lexer));
+
+            let expected = vec![
+                Token::new(TokenType::Number).set_literal(Some(Literal::Number(1.0))),
+                Token::new(TokenType::Number).set_literal(Some(Literal::Number(23.8))),
+                Token::new(TokenType::Number).set_literal(Some(Literal::Number(890.111))),
+                Token::new(TokenType::Dot),
+                Token::new(TokenType::Identifier).set_literal(Some(Literal::Identifier("floor".to_string()))),
+                Token::new(TokenType::LeftParen),
+                Token::new(TokenType::RightParen),
+                Token::new(TokenType::EOF),
+            ];
+
+            assert_eq!(token_list, expected);
         }
     }
 }
