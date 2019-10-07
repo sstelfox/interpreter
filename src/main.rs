@@ -243,6 +243,7 @@ mod lexer {
                     Some(next_ch) => {
                         if next_ch.is_numeric() {
                             raw_txt.push(self.read_char().unwrap());
+                            continue;
                         } else if next_ch == &'.' {
                             if found_dot {
                                 break;
@@ -255,11 +256,9 @@ mod lexer {
                                     continue;
                                 }
                             }
-
-                            break;
-                        } else {
-                            break;
                         }
+
+                        break
                     }
                     None => break,
                 }
