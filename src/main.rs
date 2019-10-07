@@ -200,6 +200,7 @@ mod lexer {
     }
 
     pub struct InputLexer<'a> {
+        current_char: Option<char>,
         input: Peekable<Chars<'a>>,
         offset: usize,
         had_error: bool,
@@ -207,20 +208,30 @@ mod lexer {
 
     impl<'a> InputLexer<'a> {
         pub fn new(input: &'a str) -> Self {
+            let mut chars_input = input.chars();
+            let init_char = chars_input.next();
+
             InputLexer {
-                input: input.chars().peekable(),
-                offset: 0,
+                current_char: init_char,
+                input: chars_input.peekable(),
+                offset: 1,
                 had_error: false,
             }
         }
 
         fn peek_char(&mut self) -> Option<&char> {
+            self.current_char.as_ref()
+        }
+
+        fn peek_char2(&mut self) -> Option<&char> {
             self.input.peek()
         }
 
         fn read_char(&mut self) -> Option<char> {
+            let cur_char = self.current_char;
+            self.current_char = self.input.next();
             self.offset += 1;
-            self.input.next()
+            cur_char
         }
 
         fn read_numeric(&mut self, first_ch: char) -> f64 {
