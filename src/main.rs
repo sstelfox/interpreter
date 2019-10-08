@@ -664,7 +664,7 @@ mod parser {
     use std::fmt::Debug;
 
     pub trait Expression: Debug {
-        fn accept(&self, visitor: Box<dyn ExpressionVisitor>);
+        fn accept(mut self, visitor: Box<dyn ExpressionVisitor>);
     }
 
     macro_rules! define_expression {
@@ -686,13 +686,6 @@ mod parser {
                 }
             }
 
-            impl Expression for $type_name {
-                fn accept(&self, _visitor: Box<dyn ExpressionVisitor>) {
-                    // TODO: Figure out how to get this to work...
-                    //visitor.visit$type_name(self);
-                }
-            }
-
             // Probably going to need to pass a codeblock into the macro for
             // this...
             impl ExpressionVisitor for $type_name {}
@@ -700,16 +693,44 @@ mod parser {
     }
 
     pub trait ExpressionVisitor {
-        fn visitBinaryExpression(&self, expr: BinaryExpression) {}
-        fn visitGroupingExpression(&self, expr: GroupingExpression) {}
-        fn visitLiteralExpression(&self, expr: LiteralExpression) {}
-        fn visitUnaryExpression(&self, expr: UnaryExpression) {}
+        fn visit_binary_expression(&self, _expr: BinaryExpression) {}
+        fn visit_grouping_expression(&self, _expr: GroupingExpression) {}
+        fn visit_literal_expression(&self, _expr: LiteralExpression) {}
+        fn visit_unary_expression(&self, _expr: UnaryExpression) {}
     }
 
     define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>);
+
+    impl Expression for BinaryExpression {
+        fn accept(mut self, visitor: Box<dyn ExpressionVisitor>) {
+            visitor.visit_binary_expression(self);
+        }
+    }
+
     define_expression!(GroupingExpression = expression: Box<dyn Expression>);
+
+    impl Expression for GroupingExpression {
+        fn accept(mut self, visitor: Box<dyn ExpressionVisitor>) {
+            visitor.visit_grouping_expression(self);
+        }
+    }
+
     define_expression!(LiteralExpression = value: Literal);
+
+    impl Expression for LiteralExpression {
+        fn accept(mut self, visitor: Box<dyn ExpressionVisitor>) {
+            visitor.visit_literal_expression(self);
+        }
+    }
+
     define_expression!(UnaryExpression = operator: Token, expression: Box<dyn Expression>);
+
+    impl Expression for UnaryExpression {
+        fn accept(mut self, visitor: Box<dyn ExpressionVisitor>) {
+            visitor.visit_unary_expression(self);
+        }
+    }
+
 }
 
 mod interpreter {
