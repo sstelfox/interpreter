@@ -663,7 +663,9 @@ mod parser {
     use crate::tokens::{Literal, Token};
     use std::fmt::Debug;
 
-    pub trait Expression: Debug {}
+    pub trait Expression: Debug {
+        fn accept(&self, expr: Box<dyn ExpressionVisitor>) {}
+    }
 
     macro_rules! define_expression {
         ($type_name:ident = $($field_name:ident: $field_type:ty),+) => {
@@ -685,7 +687,17 @@ mod parser {
             }
 
             impl Expression for $type_name {}
+            // Probably going to need to pass a codeblock into the macro for
+            // this...
+            impl ExpressionVisitor for $type_name {}
         };
+    }
+
+    pub trait ExpressionVisitor {
+        fn visitBinaryExpression(&self, expr: BinaryExpression) {}
+        fn visitGroupingExpression(&self, expr: GroupingExpression) {}
+        fn visitLiteralExpression(&self, expr: LiteralExpression) {}
+        fn visitUnaryExpression(&self, expr: UnaryExpression) {}
     }
 
     define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>);
