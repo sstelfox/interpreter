@@ -662,25 +662,32 @@ mod lexer {
 mod parser {
     use crate::tokens::Token;
 
-    trait Expression {}
+    pub trait Expression {}
 
-    struct BinaryExpression {
-        left: Box<dyn Expression>,
-        operator: Token,
-        right: Box<dyn Expression>,
-    }
-
-    impl BinaryExpression {
-        pub fn new(left: Box<dyn Expression>, op: Token, right: Box<dyn Expression>) -> Self {
-            Self {
-                left: left,
-                operator: op,
-                right: right,
+    macro_rules! define_expression {
+        ($type_name:ident = $($field_name:ident: $field_type:ty),+) => {
+            pub struct $type_name {
+                $(
+                    $field_name: $field_type,
+                )*
             }
-        }
+
+            impl $type_name {
+                pub fn new($($field_name: $field_type),+) -> Self {
+                    Self {
+                        $(
+                            $field_name: $field_name,
+                        )*
+                    }
+                }
+            }
+
+            impl Expression for $type_name {}
+        };
     }
 
-    impl Expression for BinaryExpression {}
+    define_expression!(UnaryExpression = operator: Token);
+    define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>);
 }
 
 mod interpreter {
@@ -771,8 +778,12 @@ fn print_usage() {
     println!("Report bugs at https://github.com/sstelfox/interpreter");
 }
 
+use tokens::{Token, TokenType};
+
 fn main() {
     let args = std::env::args();
+
+    let _noop = parser::UnaryExpression::new(Token::new(TokenType::Dot));
 
     if args.len() == 1 {
         interpreter::start_repl();
