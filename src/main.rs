@@ -170,7 +170,7 @@ mod lexer {
 
     use crate::tokens::{Literal, SourceLocation, Token, TokenType};
 
-    pub trait Lexer : Iterator {
+    pub trait Lexer: Iterator {
         fn had_error(&self) -> bool;
         fn next_token(&mut self) -> Token;
     }
@@ -292,7 +292,7 @@ mod lexer {
                             }
                         }
 
-                        break
+                        break;
                     }
                     None => break,
                 }
@@ -444,7 +444,10 @@ mod lexer {
                                             // TODO: I need to embed a more appropriate error here
                                             // when there is an invalid escaped character instead
                                             // of just printing it out
-                                            println!("Invalid escape sequence found: \\{}", next_ch);
+                                            println!(
+                                                "Invalid escape sequence found: \\{}",
+                                                next_ch
+                                            );
 
                                             token_type = TokenType::Invalid;
                                             literal = Some(Literal::Invalid(next_ch));
@@ -455,7 +458,7 @@ mod lexer {
                                             // unmatched quote error as well, we can only return
                                             // one error... I'm leaning towards reporting the
                                             // unmatched quote one as it's more serious
-                                        },
+                                        }
                                     }
                                 };
                             }
@@ -527,7 +530,7 @@ mod lexer {
                 None => {
                     self.done = true;
                     TokenType::EOF
-                },
+                }
             };
 
             // This won't do anything unless we've extended beyond our starting
@@ -535,8 +538,8 @@ mod lexer {
             source_loc.extend_to(self.offset - 1);
 
             return Token::new(token_type)
-                    .set_literal(literal)
-                    .set_location(Some(source_loc));
+                .set_literal(literal)
+                .set_location(Some(source_loc));
         }
     }
 
@@ -564,8 +567,12 @@ mod lexer {
 
             loop {
                 match lexer.next() {
-                    Some(tok) => { token_list.push(tok); },
-                    None => { break; },
+                    Some(tok) => {
+                        token_list.push(tok);
+                    }
+                    None => {
+                        break;
+                    }
                 }
             }
 
@@ -574,7 +581,8 @@ mod lexer {
                 Token::new(TokenType::Number).set_literal(Some(Literal::Number(23.8))),
                 Token::new(TokenType::Number).set_literal(Some(Literal::Number(890.111))),
                 Token::new(TokenType::Dot),
-                Token::new(TokenType::Identifier).set_literal(Some(Literal::Identifier("floor".to_string()))),
+                Token::new(TokenType::Identifier)
+                    .set_literal(Some(Literal::Identifier("floor".to_string()))),
                 Token::new(TokenType::LeftParen),
                 Token::new(TokenType::RightParen),
                 Token::new(TokenType::EOF),
