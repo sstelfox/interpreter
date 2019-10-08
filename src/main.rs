@@ -660,12 +660,14 @@ mod lexer {
 }
 
 mod parser {
-    use crate::tokens::Token;
+    use crate::tokens::{Literal, Token};
+    use std::fmt::Debug;
 
-    pub trait Expression {}
+    pub trait Expression: Debug {}
 
     macro_rules! define_expression {
         ($type_name:ident = $($field_name:ident: $field_type:ty),+) => {
+            #[derive(Debug)]
             pub struct $type_name {
                 $(
                     $field_name: $field_type,
@@ -686,8 +688,10 @@ mod parser {
         };
     }
 
-    define_expression!(UnaryExpression = operator: Token);
     define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>);
+    define_expression!(GroupingExpression = expression: Box<dyn Expression>);
+    define_expression!(LiteralExpression = value: Literal);
+    define_expression!(UnaryExpression = operator: Token, expression: Box<dyn Expression>);
 }
 
 mod interpreter {
@@ -782,8 +786,6 @@ use tokens::{Token, TokenType};
 
 fn main() {
     let args = std::env::args();
-
-    let _noop = parser::UnaryExpression::new(Token::new(TokenType::Dot));
 
     if args.len() == 1 {
         interpreter::start_repl();
