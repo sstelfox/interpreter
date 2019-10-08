@@ -561,7 +561,8 @@ mod lexer {
 
         #[test]
         fn test_reserved_words() {
-            let input_str = "and class else false for fun if nil or print return super this true var while";
+            let input_str =
+                "and class else false for fun if nil or print return super this true var while";
             let mut lexer = InputLexer::new(&input_str);
             let mut token_list: Vec<Token> = Vec::new();
 
@@ -658,7 +659,29 @@ mod lexer {
     }
 }
 
-mod parser {}
+mod parser {
+    use crate::tokens::Token;
+
+    trait Expression {}
+
+    struct BinaryExpression {
+        left: Box<dyn Expression>,
+        operator: Token,
+        right: Box<dyn Expression>,
+    }
+
+    impl BinaryExpression {
+        pub fn new(left: Box<dyn Expression>, op: Token, right: Box<dyn Expression>) -> Self {
+            Self {
+                left: left,
+                operator: op,
+                right: right,
+            }
+        }
+    }
+
+    impl Expression for BinaryExpression {}
+}
 
 mod interpreter {
     use std::fs::File;
