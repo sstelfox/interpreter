@@ -560,6 +560,47 @@ mod lexer {
         use super::*;
 
         #[test]
+        fn test_reserved_words() {
+            let input_str = "and class else false for fun if nil or print return super this true var while";
+            let mut lexer = InputLexer::new(&input_str);
+            let mut token_list: Vec<Token> = Vec::new();
+
+            loop {
+                match lexer.next() {
+                    Some(tok) => {
+                        token_list.push(tok);
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+
+            let expected = vec![
+                Token::new(TokenType::And),
+                Token::new(TokenType::Class),
+                Token::new(TokenType::Else),
+                Token::new(TokenType::False),
+                Token::new(TokenType::For),
+                Token::new(TokenType::Fun),
+                Token::new(TokenType::If),
+                Token::new(TokenType::Nil),
+                Token::new(TokenType::Or),
+                Token::new(TokenType::Print),
+                Token::new(TokenType::Return),
+                Token::new(TokenType::Super),
+                Token::new(TokenType::This),
+                Token::new(TokenType::True),
+                Token::new(TokenType::Var),
+                Token::new(TokenType::While),
+                Token::new(TokenType::EOF),
+            ];
+
+            assert_eq!(token_list, expected);
+            assert!(!lexer.had_error());
+        }
+
+        #[test]
         fn test_lexing_numerics() {
             let input_str = "1 23.8 890.111.floor()";
             let mut lexer = InputLexer::new(&input_str);
