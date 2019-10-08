@@ -664,7 +664,7 @@ mod parser {
     use std::fmt::Debug;
 
     pub trait Expression: Debug {
-        fn accept(&self, expr: Box<dyn ExpressionVisitor>) {}
+        fn accept(&self, visitor: Box<dyn ExpressionVisitor>);
     }
 
     macro_rules! define_expression {
@@ -686,7 +686,13 @@ mod parser {
                 }
             }
 
-            impl Expression for $type_name {}
+            impl Expression for $type_name {
+                fn accept(&self, _visitor: Box<dyn ExpressionVisitor>) {
+                    // TODO: Figure out how to get this to work...
+                    //visitor.visit$type_name(self);
+                }
+            }
+
             // Probably going to need to pass a codeblock into the macro for
             // this...
             impl ExpressionVisitor for $type_name {}
