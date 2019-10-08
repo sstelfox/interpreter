@@ -170,12 +170,13 @@ mod lexer {
 
     use crate::tokens::{Literal, SourceLocation, Token, TokenType};
 
-    pub trait Lexer {
+    pub trait Lexer : Iterator {
         fn had_error(&self) -> bool;
         fn next_token(&mut self) -> Token;
     }
 
     pub struct TokenLexer {
+        done: bool,
         had_error: bool,
         pos: usize,
         token_list: VecDeque<Token>,
@@ -184,6 +185,7 @@ mod lexer {
     impl TokenLexer {
         pub fn new(tokens: Vec<Token>) -> Self {
             TokenLexer {
+                done: false,
                 had_error: false,
                 pos: 0,
                 token_list: VecDeque::from(tokens),
@@ -197,7 +199,8 @@ mod lexer {
         }
 
         fn next_token(&mut self) -> Token {
-            if self.token_list.is_empty() {
+            if self.done || self.token_list.is_empty() {
+                self.done = true;
                 return Token::new(TokenType::EOF);
             }
 
@@ -216,8 +219,21 @@ mod lexer {
         }
     }
 
+    impl Iterator for TokenLexer {
+        type Item = Token;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.done {
+                return None;
+            }
+
+            Some(self.next_token())
+        }
+    }
+
     pub struct InputLexer<'a> {
         current_char: Option<char>,
+        done: bool,
         input: Peekable<Chars<'a>>,
         offset: usize,
         had_error: bool,
@@ -230,6 +246,7 @@ mod lexer {
 
             InputLexer {
                 current_char: init_char,
+                done: false,
                 input: chars_input.peekable(),
                 offset: 1,
                 had_error: false,
@@ -507,7 +524,10 @@ mod lexer {
                         TokenType::Invalid
                     }
                 }
-                None => TokenType::EOF,
+                None => {
+                    self.done = true;
+                    TokenType::EOF
+                },
             };
 
             // This won't do anything unless we've extended beyond our starting
@@ -520,32 +540,34 @@ mod lexer {
         }
     }
 
+    impl Iterator for InputLexer<'_> {
+        type Item = Token;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.done {
+                return None;
+            }
+
+            Some(self.next_token())
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
 
-        fn collect_all_tokens(mut lexer: Box<dyn Lexer>) -> Vec<Token> {
-            let mut tok_list = Vec::new();
-
-            loop {
-                let cur_tok = lexer.next_token();
-
-                if cur_tok.token_type == TokenType::EOF {
-                    tok_list.push(cur_tok);
-                    break;
-                } else {
-                    tok_list.push(cur_tok);
-                }
-            }
-
-            tok_list
-        }
-
         #[test]
         fn test_lexing_numerics() {
             let input_str = "1 23.8 890.111.floor()";
-            let lexer = InputLexer::new(&input_str);
-            let token_list = collect_all_tokens(Box::new(lexer));
+            let mut lexer = InputLexer::new(&input_str);
+            let mut token_list: Vec<Token> = Vec::new();
+
+            loop {
+                match lexer.next() {
+                    Some(tok) => { token_list.push(tok); },
+                    None => { break; },
+                }
+            }
 
             let expected = vec![
                 Token::new(TokenType::Number).set_literal(Some(Literal::Number(1.0))),
@@ -559,6 +581,30 @@ mod lexer {
             ];
 
             assert_eq!(token_list, expected);
+            assert!(!lexer.had_error());
+        }
+
+        #[test]
+        fn test_errored_input() {
+            let input_str = "bad esca\\pe character";
+            let mut lexer = InputLexer::new(&input_str);
+
+            loop {
+                if lexer.next().is_none() {
+                    break;
+                }
+            }
+            assert!(lexer.had_error());
+
+            let input_str = "unterminated \"quote";
+            let mut lexer = InputLexer::new(&input_str);
+
+            loop {
+                if lexer.next().is_none() {
+                    break;
+                }
+            }
+            assert!(lexer.had_error());
         }
     }
 }
