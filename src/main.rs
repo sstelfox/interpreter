@@ -668,7 +668,7 @@ mod parser {
     }
 
     macro_rules! define_expression {
-        ($type_name:ident = $($field_name:ident: $field_type:ty),+ : $visit_key:ident) => {
+        ($type_name:ident($($field_name:ident: $field_type:ty),*).$visit_key:ident) => {
             #[derive(Debug)]
             pub struct $type_name {
                 $(
@@ -705,10 +705,10 @@ mod parser {
         fn visit_unary_expression(&self, _expr: UnaryExpression) {}
     }
 
-    define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression> : visit_binary_expression);
-    define_expression!(GroupingExpression = expression: Box<dyn Expression> : visit_grouping_expression);
-    define_expression!(LiteralExpression = value: Literal : visit_literal_expression);
-    define_expression!(UnaryExpression = operator: Token, expression: Box<dyn Expression> : visit_unary_expression);
+    define_expression!(BinaryExpression(left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>).visit_binary_expression);
+    define_expression!(GroupingExpression(expression: Box<dyn Expression>).visit_grouping_expression);
+    define_expression!(LiteralExpression(value: Literal).visit_literal_expression);
+    define_expression!(UnaryExpression(operator: Token, expression: Box<dyn Expression>).visit_unary_expression);
 }
 
 mod interpreter {
