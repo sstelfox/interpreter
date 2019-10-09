@@ -34,6 +34,8 @@ mod errors {
 }
 
 mod tokens {
+    use std::fmt;
+
     #[derive(Debug, PartialEq)]
     pub enum Literal {
         Identifier(String),
@@ -43,18 +45,22 @@ mod tokens {
         Text(String),
     }
 
+    impl fmt::Display for Literal {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                Literal::Identifier(id) => write!(f, "id[{}]", id),
+                Literal::Invalid(ch) => write!(f, "!I({})", ch),
+                Literal::Number(num) => write!(f, "{}", num),
+                Literal::Text(s) => write!(f, "str({})", s),
+            }
+        }
+    }
+
     #[derive(Debug)]
     pub struct Token {
         pub token_type: TokenType,
         pub literal: Option<Literal>,
         pub location: Option<SourceLocation>,
-    }
-
-    impl PartialEq for Token {
-        // For the sake of equality the source location doesn't matter
-        fn eq(&self, other: &Self) -> bool {
-            self.token_type == other.token_type && self.literal == other.literal
-        }
     }
 
     impl Token {
@@ -74,6 +80,22 @@ mod tokens {
         pub fn set_location(mut self, new_loc: Option<SourceLocation>) -> Self {
             self.location = new_loc;
             self
+        }
+    }
+
+    impl PartialEq for Token {
+        // For the sake of equality the source location doesn't matter
+        fn eq(&self, other: &Self) -> bool {
+            self.token_type == other.token_type && self.literal == other.literal
+        }
+    }
+
+    impl fmt::Display for Token {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match &self.literal {
+                Some(lit) => write!(f, "{}({})", self.token_type, lit),
+                None => write!(f, "{}", self.token_type),
+            }
         }
     }
 
@@ -130,6 +152,18 @@ mod tokens {
         // These aren't present in the reference language as tokens
         Comment,
         Invalid,
+    }
+
+    impl fmt::Display for TokenType {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            use self::TokenType::*;
+
+            match self {
+                Minus => write!(f, "-"),
+                Star => write!(f, "*"),
+                _ => write!(f, "TOK"),
+            }
+        }
     }
 
     /// This data structure wraps lex'd tokens with information useful for diagnosing the source of
@@ -721,7 +755,7 @@ mod parser {
 
     impl ExpressionVisitor for AstPrinter {
         fn visit_binary_expression(&self, expr: &BinaryExpression) {
-            print!("({:?} ", expr.operator);
+            print!("({} ", expr.operator);
             expr.left.accept(Box::new(self));
             print!(" ");
             expr.right.accept(Box::new(self));
@@ -735,16 +769,11 @@ mod parser {
         }
 
         fn visit_literal_expression(&self, expr: &LiteralExpression) {
-            match &expr.value {
-                Literal::Identifier(id) => { print!("id[{}]", id); }
-                Literal::Invalid(ch) => { print!("!invalid[{}]!", ch); }
-                Literal::Number(n) => { print!("num[{}]", n); }
-                Literal::Text(txt) => { print!("txt[{}]", txt); }
-            }
+            print!("{}", expr.value);
         }
 
         fn visit_unary_expression(&self, expr: &UnaryExpression) {
-            print!("({:?} ", expr.operator);
+            print!("({} ", expr.operator);
             expr.right.accept(Box::new(self));
             print!(")");
         }
