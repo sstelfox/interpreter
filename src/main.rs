@@ -668,7 +668,7 @@ mod parser {
     }
 
     macro_rules! define_expression {
-        ($type_name:ident($($field_name:ident: $field_type:ty),*)) => {
+        ($type_name:ident($($field_name:ident: $field_type:ty),*).$visit_name:ident) => {
             #[derive(Debug)]
             pub struct $type_name {
                 $(
@@ -686,28 +686,34 @@ mod parser {
                 }
             }
 
-            // Probably going to need to pass a codeblock into the macro for
-            // this...
-            impl ExpressionVisitor for $type_name {}
+            impl Expression for $type_name {
+                fn accept(&self, visitor: Box<&dyn ExpressionVisitor>) {
+                    visitor.$visit_name(self);
+                }
+            }
         };
     }
 
     pub trait ExpressionVisitor {
-        fn visit_binary_expression(&self, expr: &BinaryExpression) {}
-        fn visit_grouping_expression(&self, expr: &GroupingExpression) {}
-        fn visit_literal_expression(&self, expr: &LiteralExpression) {}
-        fn visit_unary_expression(&self, expr: &UnaryExpression) {}
+        fn visit_binary_expression(&self, _expr: &BinaryExpression) {}
+        fn visit_grouping_expression(&self, _expr: &GroupingExpression) {}
+        fn visit_literal_expression(&self, _expr: &LiteralExpression) {}
+        fn visit_unary_expression(&self, _expr: &UnaryExpression) {}
     }
 
-    define_expression!(BinaryExpression(left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>));
-    define_expression!(GroupingExpression(expr: Box<dyn Expression>));
-    define_expression!(LiteralExpression(value: Literal));
-    define_expression!(UnaryExpression(operator: Token, right: Box<dyn Expression>));
+    define_expression!(BinaryExpression(left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>).visit_binary_expression);
+    define_expression!(GroupingExpression(expr: Box<dyn Expression>).visit_grouping_expression);
+    define_expression!(LiteralExpression(value: Literal).visit_literal_expression);
+    define_expression!(UnaryExpression(operator: Token, right: Box<dyn Expression>).visit_unary_expression);
 
-    struct AstPrinter;
+    pub struct AstPrinter;
 
     impl AstPrinter {
-        fn print(&self, expr: Box<&dyn Expression>) {
+        pub fn new() -> Self {
+            Self { }
+        }
+
+        pub fn print(&self, expr: Box<&dyn Expression>) {
             expr.accept(Box::new(self));
             println!("");
         }
@@ -833,10 +839,22 @@ fn print_usage() {
     println!("Report bugs at https://github.com/sstelfox/interpreter");
 }
 
-use tokens::{Token, TokenType};
+use parser::{AstPrinter, BinaryExpression, GroupingExpression, LiteralExpression, UnaryExpression};
+use tokens::{Literal, Token, TokenType};
 
 fn main() {
     let args = std::env::args();
+
+    let left_literal = LiteralExpression::new(Literal::Number(123.0));
+    let left_unary = UnaryExpression::new(Token::new(TokenType::Minus), Box::new(left_literal));
+
+    let right_literal = LiteralExpression::new(Literal::Number(45.67));
+    let right_grouping = GroupingExpression::new(Box::new(right_literal));
+
+    let root_expr = BinaryExpression::new(Box::new(left_unary), Token::new(TokenType::Star), Box::new(right_grouping));
+
+    let ast_printer = AstPrinter::new();
+    ast_printer.print(Box::new(&root_expr));
 
     if args.len() == 1 {
         interpreter::start_repl();
