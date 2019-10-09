@@ -48,10 +48,10 @@ mod tokens {
     impl fmt::Display for Literal {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
-                Literal::Identifier(id) => write!(f, "id[{}]", id),
-                Literal::Invalid(ch) => write!(f, "!I({})", ch),
+                Literal::Identifier(id) => write!(f, "{}", id),
+                Literal::Invalid(ch) => write!(f, "!I({})!", ch),
                 Literal::Number(num) => write!(f, "{}", num),
-                Literal::Text(s) => write!(f, "str({})", s),
+                Literal::Text(s) => write!(f, "\"{}\"", s),
             }
         }
     }
@@ -837,7 +837,7 @@ mod interpreter {
         let mut current_token = lexer.next_token();
 
         loop {
-            println!("{:?}", current_token);
+            println!("{}", current_token);
             current_token = lexer.next_token();
 
             if current_token.token_type == TokenType::EOF {
@@ -874,7 +874,7 @@ mod interpreter {
             }
 
             loop {
-                println!("{:?}", current_token);
+                println!("{}", current_token);
                 current_token = lexer.next_token();
 
                 if current_token.token_type == TokenType::EOF {
