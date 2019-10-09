@@ -158,11 +158,51 @@ mod tokens {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             use self::TokenType::*;
 
-            match self {
-                Minus => write!(f, "-"),
-                Star => write!(f, "*"),
-                _ => write!(f, "TOK"),
-            }
+            let out = match self {
+                And => "and",
+                Bang => "!",
+                BangEqual => "!=",
+                Class => "class",
+                Comma => ",",
+                Comment => "Comment",
+                Dot => ".",
+                Else => "else",
+                EOF => "(EOF)",
+                Equal => "=",
+                EqualEqual => "==",
+                False => "false",
+                For => "for",
+                Fun => "fun",
+                Greater => ">",
+                GreaterEqual => ">=",
+                Identifier => "ID",
+                If => "if",
+                Invalid => "Invalid",
+                LeftBrace => "{",
+                LeftParen => "(",
+                Less => "<",
+                LessEqual => "<=",
+                Minus => "-",
+                Nil => "nil",
+                Number => "Num",
+                Or => "or",
+                Plus => "+",
+                Print => "print",
+                Return => "return",
+                RightBrace => "}",
+                RightParen => "",
+                SemiColon => ";",
+                Slash => "/",
+                Star => "*",
+                Super => "super",
+                Text => "Text",
+                This => "this",
+                True => "true",
+                Var => "var",
+                While => "while",
+            };
+
+            write!(f, "{}", out)
         }
     }
 
