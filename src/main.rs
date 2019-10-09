@@ -668,7 +668,7 @@ mod parser {
     }
 
     macro_rules! define_expression {
-        ($type_name:ident = $($field_name:ident: $field_type:ty),+) => {
+        ($type_name:ident = $($field_name:ident: $field_type:ty),+ : $visit_key:ident) => {
             #[derive(Debug)]
             pub struct $type_name {
                 $(
@@ -686,6 +686,12 @@ mod parser {
                 }
             }
 
+            impl Expression for $type_name {
+                fn accept(self, visitor: Box<dyn ExpressionVisitor>) {
+                    visitor.$visit_key(self);
+                }
+            }
+
             // Probably going to need to pass a codeblock into the macro for
             // this...
             impl ExpressionVisitor for $type_name {}
@@ -699,38 +705,10 @@ mod parser {
         fn visit_unary_expression(&self, _expr: UnaryExpression) {}
     }
 
-    define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression>);
-
-    impl Expression for BinaryExpression {
-        fn accept(self, visitor: Box<dyn ExpressionVisitor>) {
-            visitor.visit_binary_expression(self);
-        }
-    }
-
-    define_expression!(GroupingExpression = expression: Box<dyn Expression>);
-
-    impl Expression for GroupingExpression {
-        fn accept(self, visitor: Box<dyn ExpressionVisitor>) {
-            visitor.visit_grouping_expression(self);
-        }
-    }
-
-    define_expression!(LiteralExpression = value: Literal);
-
-    impl Expression for LiteralExpression {
-        fn accept(self, visitor: Box<dyn ExpressionVisitor>) {
-            visitor.visit_literal_expression(self);
-        }
-    }
-
-    define_expression!(UnaryExpression = operator: Token, expression: Box<dyn Expression>);
-
-    impl Expression for UnaryExpression {
-        fn accept(self, visitor: Box<dyn ExpressionVisitor>) {
-            visitor.visit_unary_expression(self);
-        }
-    }
-
+    define_expression!(BinaryExpression = left: Box<dyn Expression>, operator: Token, right: Box<dyn Expression> : visit_binary_expression);
+    define_expression!(GroupingExpression = expression: Box<dyn Expression> : visit_grouping_expression);
+    define_expression!(LiteralExpression = value: Literal : visit_literal_expression);
+    define_expression!(UnaryExpression = operator: Token, expression: Box<dyn Expression> : visit_unary_expression);
 }
 
 mod interpreter {
