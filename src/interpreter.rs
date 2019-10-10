@@ -14,7 +14,7 @@ pub fn run_file(path: String) {
     let mut current_token = lexer.next_token();
 
     loop {
-        println!("{:?}", current_token);
+        println!("{}", current_token);
         current_token = lexer.next_token();
 
         if current_token.token_type == TokenType::EOF {
@@ -51,7 +51,7 @@ pub fn start_repl() {
         }
 
         loop {
-            println!("{:?}", current_token);
+            println!("{}", current_token);
             current_token = lexer.next_token();
 
             if current_token.token_type == TokenType::EOF {

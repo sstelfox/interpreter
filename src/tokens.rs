@@ -12,10 +12,10 @@ pub enum Literal {
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Literal::Identifier(id) => write!(f, "id[{}]", id),
-            Literal::Invalid(ch) => write!(f, "!I({})", ch),
+            Literal::Identifier(id) => write!(f, "{}", id),
+            Literal::Invalid(ch) => write!(f, "!I({})!", ch),
             Literal::Number(num) => write!(f, "{}", num),
-            Literal::Text(s) => write!(f, "str({})", s),
+            Literal::Text(s) => write!(f, "\"{}\"", s),
         }
     }
 }

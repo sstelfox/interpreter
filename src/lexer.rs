@@ -333,6 +333,62 @@ impl<'a> Lexer for InputLexer<'a> {
     }
 }
 
+pub struct TokenLexer {
+    done: bool,
+    had_error: bool,
+    pos: usize,
+    token_list: VecDeque<Token>,
+}
+
+impl TokenLexer {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        TokenLexer {
+            done: false,
+            had_error: false,
+            pos: 0,
+            token_list: VecDeque::from(tokens),
+        }
+    }
+}
+
+impl Iterator for TokenLexer {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        Some(self.next_token())
+    }
+}
+
+impl Lexer for TokenLexer {
+    fn had_error(&self) -> bool {
+        self.had_error
+    }
+
+    fn next_token(&mut self) -> Token {
+        if self.done || self.token_list.is_empty() {
+            self.done = true;
+            return Token::new(TokenType::EOF);
+        }
+
+        let source_loc = SourceLocation::new(self.pos);
+        self.pos += 1;
+
+        // Grab the next token and label it with the location it was extracted from
+        let mut token = self.token_list.pop_front().unwrap();
+        token.location = Some(source_loc);
+
+        if token.token_type == TokenType::Invalid {
+            self.had_error = true;
+        }
+
+        token
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,61 +489,5 @@ mod tests {
             }
         }
         assert!(lexer.had_error());
-    }
-}
-
-pub struct TokenLexer {
-    done: bool,
-    had_error: bool,
-    pos: usize,
-    token_list: VecDeque<Token>,
-}
-
-impl TokenLexer {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        TokenLexer {
-            done: false,
-            had_error: false,
-            pos: 0,
-            token_list: VecDeque::from(tokens),
-        }
-    }
-}
-
-impl Iterator for TokenLexer {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-
-        Some(self.next_token())
-    }
-}
-
-impl Lexer for TokenLexer {
-    fn had_error(&self) -> bool {
-        self.had_error
-    }
-
-    fn next_token(&mut self) -> Token {
-        if self.done || self.token_list.is_empty() {
-            self.done = true;
-            return Token::new(TokenType::EOF);
-        }
-
-        let source_loc = SourceLocation::new(self.pos);
-        self.pos += 1;
-
-        // Grab the next token and label it with the location it was extracted from
-        let mut token = self.token_list.pop_front().unwrap();
-        token.location = Some(source_loc);
-
-        if token.token_type == TokenType::Invalid {
-            self.had_error = true;
-        }
-
-        token
     }
 }
