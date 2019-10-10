@@ -1,10 +1,12 @@
+mod ast;
 mod errors;
 mod interpreter;
 mod lexer;
 mod parser;
 mod tokens;
 
-use parser::{AstPrinter, BinaryExpression, GroupingExpression, LiteralExpression, UnaryExpression};
+use ast::AstPrinter;
+use parser::{BinaryExpression, GroupingExpression, LiteralExpression, UnaryExpression};
 use tokens::{Literal, Token, TokenType};
 
 const VERSION: &str = "0.1.1";

@@ -1,3 +1,4 @@
+use crate::ast::AstPrinter;
 use crate::tokens::{Literal, Token};
 use std::fmt::Debug;
 
@@ -43,42 +44,3 @@ define_expression!(BinaryExpression(left: Box<dyn Expression>, operator: Token, 
 define_expression!(GroupingExpression(expr: Box<dyn Expression>).visit_grouping_expression);
 define_expression!(LiteralExpression(value: Literal).visit_literal_expression);
 define_expression!(UnaryExpression(operator: Token, right: Box<dyn Expression>).visit_unary_expression);
-
-pub struct AstPrinter;
-
-impl AstPrinter {
-    pub fn new() -> Self {
-        Self { }
-    }
-
-    pub fn print(&self, expr: Box<&dyn Expression>) {
-        expr.accept(Box::new(self));
-        println!("");
-    }
-}
-
-impl ExpressionVisitor for AstPrinter {
-    fn visit_binary_expression(&self, expr: &BinaryExpression) {
-        print!("({} ", expr.operator);
-        expr.left.accept(Box::new(self));
-        print!(" ");
-        expr.right.accept(Box::new(self));
-        print!(")");
-    }
-
-    fn visit_grouping_expression(&self, expr: &GroupingExpression) {
-        print!("(group ");
-        expr.expr.accept(Box::new(self));
-        print!(")");
-    }
-
-    fn visit_literal_expression(&self, expr: &LiteralExpression) {
-        print!("{}", expr.value);
-    }
-
-    fn visit_unary_expression(&self, expr: &UnaryExpression) {
-        print!("({} ", expr.operator);
-        expr.right.accept(Box::new(self));
-        print!(")");
-    }
-}
