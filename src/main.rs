@@ -2,11 +2,9 @@ mod ast;
 mod errors;
 mod interpreter;
 mod lexer;
-mod parser;
 mod tokens;
 
-use ast::AstPrinter;
-use parser::{BinaryExpression, GroupingExpression, LiteralExpression, UnaryExpression};
+use ast::{AstPrinter, Expression};
 use tokens::{Literal, Token, TokenType};
 
 const VERSION: &str = "0.1.1";
@@ -31,16 +29,16 @@ fn print_usage() {
 fn main() {
     let args = std::env::args();
 
-    let left_literal = LiteralExpression::new(Literal::Number(123.0));
-    let left_unary = UnaryExpression::new(Token::new(TokenType::Minus), Box::new(left_literal));
+    let left_literal = Expression::Literal(Literal::Number(123.0));
+    let left_unary = Expression::Unary(Token::new(TokenType::Minus), Box::new(left_literal));
 
-    let right_literal = LiteralExpression::new(Literal::Number(45.67));
-    let right_grouping = GroupingExpression::new(Box::new(right_literal));
+    let right_literal = Expression::Literal(Literal::Number(45.67));
+    let right_grouping = Expression::Grouping(Box::new(right_literal));
 
-    let root_expr = BinaryExpression::new(Box::new(left_unary), Token::new(TokenType::Star), Box::new(right_grouping));
+    let root_expr = Expression::Binary(Box::new(left_unary), Token::new(TokenType::Star), Box::new(right_grouping));
 
-    let ast_printer = AstPrinter::new();
-    ast_printer.print(Box::new(&root_expr));
+    let mut ast_printer = AstPrinter::new();
+    ast_printer.print(&root_expr);
 
     if args.len() == 1 {
         interpreter::start_repl();
