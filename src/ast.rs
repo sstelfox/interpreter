@@ -1,12 +1,12 @@
-use crate::tokens::{Literal, Token};
+use crate::tokens;
 
 pub enum Expression {
-    Binary(Box<Expression>, Token, Box<Expression>),
+    Binary(Box<Expression>, tokens::Token, Box<Expression>),
     Grouping(Box<Expression>),
-    Literal(Literal),
+    Literal(tokens::Literal),
     // I could potentially split this in prefix and postfix operations but I don't think that's
     // necessary yet...
-    Unary(Token, Box<Expression>),
+    Unary(tokens::Token, Box<Expression>),
 }
 
 pub trait Visitor<T> {
@@ -33,14 +33,14 @@ impl Visitor<()> for AstPrinter {
     fn visit_expression(&mut self, expr: &Expression) -> () {
         match expr {
             Expression::Binary(left, op, right) => {
-                self.result.push_str(&format!("({} ", op));
+                self.result.push_str("(");
                 self.visit_expression(left);
-                self.result.push_str(" ");
+                self.result.push_str(&format!(" {} ", op));
                 self.visit_expression(right);
                 self.result.push_str(")");
             },
             Expression::Grouping(left) => {
-                self.result.push_str("(group ");
+                self.result.push_str("(");
                 self.visit_expression(left);
                 self.result.push_str(")");
             },
@@ -48,9 +48,8 @@ impl Visitor<()> for AstPrinter {
                 self.result.push_str(&format!("{}", value));
             },
             Expression::Unary(op, right) => {
-                self.result.push_str(&format!("({} ", op));
+                self.result.push_str(&format!("{}", op));
                 self.visit_expression(right);
-                self.result.push_str(")");
             },
         }
     }
